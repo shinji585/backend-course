@@ -1,27 +1,18 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 from scalar_fastapi import get_scalar_api_reference
+
+from app.route import router
 
 app = FastAPI()
 
+app.include_router(router)
 
-@app.get("/shipment")
-async def get_shipment() -> dict: 
-    return {
-        "product_name": "Portatil Asus Vivobook",
-        "status": "in order to be send"
-    }
-    
+
+@app.get("/")
+async def read_root():
+    return {"message": "Hello from FastAPI with Scalar!"}
+
+
 @app.get("/scalar", include_in_schema=False)
-async def get_scalar_doct() -> HTMLResponse: 
-    return get_scalar_api_reference(
-        openapi_url=app.openapi_url,
-        title="Scalar API"
-    )
-    
-@app.post("/shipment/buy")
-async def post_shipment(name: str) -> dict: 
-    return {
-        "product_name": name,
-        "status": "product added to leave soon"
-    }
+async def scalar_html():
+    return get_scalar_api_reference(openapi_url=app.openapi_url, title="BuyPlanner Documentation Scalar")
