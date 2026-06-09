@@ -9,7 +9,7 @@ from app.schemas.base import BaseItem
 
 
 class DetailItem(BaseItem):
-    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, description="ID of the Item")]
+    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, description="Unique identifier")]
     status: Annotated[EnumStatus, Field(default=EnumStatus.PENDING)]
     created_at: Annotated[datetime, Field(default_factory=datetime.now)]
 

@@ -1,18 +1,18 @@
 import uuid
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from app.enums.enum_status import EnumStatus
+from app.schemas.base import BaseItem
 
 
-class OutItem(BaseModel):
-    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, description="ID of the Item")]
-    name: Annotated[str, Field(min_length=3, max_length=20, description="Name of the Item")]
-    status: Annotated[EnumStatus, Field(description="Current purchase status")]
+class OutItem(BaseItem):
+    id: Annotated[uuid.UUID, Field(description="Unique identifier")]
+    status: Annotated[EnumStatus, Field(default=EnumStatus.PENDING)]
 
     model_config = ConfigDict(
-        extra="forbid",
+        extra="ignore",
         from_attributes=True,
         json_schema_extra={
             "example": {
