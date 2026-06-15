@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from app.schemas.create import CreateItem
 from app.schemas.detail import DetailItem
@@ -7,7 +8,7 @@ from app.schemas.update import UpdateItem
 
 
 class ItemController:
-    repository: list[dict] = []
+    repository: list[dict[str, Any]] = []
 
     def createItem(self, item_in: CreateItem) -> OutItem:
         item_data = item_in.model_dump()
