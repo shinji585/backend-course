@@ -75,7 +75,7 @@ async def delete_item(item_id: uuid.UUID, controller: Annotated[ItemController, 
     response_model=DetailItem,
     status_code=status.HTTP_200_OK,
     summary="Partially update an item",
-    description="This route allows modifying specific fields of an existing item by its ID without overwriting the entire resource.",
+    description="Updates selected fields of an existing item by ID without replacing the entire resource.",
 )
 async def update_item(item_id: uuid.UUID, item_update: UpdateItem, controller: Annotated[ItemController, Depends()]):
     updated_item = controller.updateItem(item_id, item_update)
