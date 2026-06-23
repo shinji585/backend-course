@@ -8,7 +8,7 @@ from app.users.schemas.out import OutUser
 
 class DetailUser(OutUser):
     id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, description="Unique identifier")]
-    hashed_password: Annotated[str, Field(min_length=8, max_length=20)]
+    hashed_password: Annotated[str, Field(min_length=80, max_length=120)]
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
