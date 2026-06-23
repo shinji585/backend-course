@@ -3,7 +3,7 @@ from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
 
-from app.items.enums.enum_status import EnumStatus
+from app.items.enums import EnumStatus
 from app.items.schemas.base import BaseItem
 
 

@@ -3,10 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.items.schemas.create import CreateItem
-from app.items.schemas.detail import DetailItem
-from app.items.schemas.out import OutItem
-from app.items.schemas.update import UpdateItem
+from app.items.schemas import CreateItem, DetailItem, OutItem, UpdateItem
 from app.items.service import ItemServices
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -19,8 +16,8 @@ router = APIRouter(prefix="/items", tags=["items"])
     description="Creates a new item record using the provided name and description.",
     status_code=status.HTTP_201_CREATED,
 )
-async def create_item(item_in: CreateItem, controller: Annotated[ItemServices, Depends()]):
-    return controller.createItem(item_in)
+async def create_item(item_in: CreateItem, service: Annotated[ItemServices, Depends()]):
+    return service.createItem(item_in)
 
 
 @router.get(
@@ -30,8 +27,8 @@ async def create_item(item_in: CreateItem, controller: Annotated[ItemServices, D
     status_code=status.HTTP_200_OK,
     summary="List all items",
 )
-async def list_items(controller: Annotated[ItemServices, Depends()]):
-    items = controller.listItems()
+async def list_items(service: Annotated[ItemServices, Depends()]):
+    items = service.listItems()
 
     if not items:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't items on the list")
@@ -46,8 +43,8 @@ async def list_items(controller: Annotated[ItemServices, Depends()]):
     status_code=status.HTTP_200_OK,
     description="This route retrieves the full details of a specific item by its unique identifier.",
 )
-async def get_item(item_id: uuid.UUID, controller: Annotated[ItemServices, Depends()]):
-    item = controller.getItemDetail(item_id)
+async def get_item(item_id: uuid.UUID, service: Annotated[ItemServices, Depends()]):
+    item = service.getItemDetail(item_id)
 
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
@@ -62,8 +59,8 @@ async def get_item(item_id: uuid.UUID, controller: Annotated[ItemServices, Depen
     status_code=status.HTTP_200_OK,
     description="This route delete an item by its id",
 )
-async def delete_item(item_id: uuid.UUID, controller: Annotated[ItemServices, Depends()]):
-    item = controller.deleteItem(item_id)
+async def delete_item(item_id: uuid.UUID, service: Annotated[ItemServices, Depends()]):
+    item = service.deleteItem(item_id)
 
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
@@ -77,8 +74,8 @@ async def delete_item(item_id: uuid.UUID, controller: Annotated[ItemServices, De
     summary="Partially update an item",
     description="Updates selected fields of an existing item by ID without replacing the entire resource.",
 )
-async def update_item(item_id: uuid.UUID, item_update: UpdateItem, controller: Annotated[ItemServices, Depends()]):
-    updated_item = controller.updateItem(item_id, item_update)
+async def update_item(item_id: uuid.UUID, item_update: UpdateItem, service: Annotated[ItemServices, Depends()]):
+    updated_item = service.updateItem(item_id, item_update)
 
     if updated_item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")

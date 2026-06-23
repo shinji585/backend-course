@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
 
-from app.items.route import router
+from app.items import items_router
+from app.users import users_router
 
 app = FastAPI()
 
-app.include_router(router)
+routers = [items_router, users_router]
+
+
+for router in routers:
+    app.include_router(router=router)
 
 
 @app.get("/")

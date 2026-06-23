@@ -1,9 +1,6 @@
 import uuid
 
-from app.items.schemas.create import CreateItem
-from app.items.schemas.detail import DetailItem
-from app.items.schemas.out import OutItem
-from app.items.schemas.update import UpdateItem
+from app.items.schemas import CreateItem, DetailItem, OutItem, UpdateItem
 
 
 class ItemServices:
