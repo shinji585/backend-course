@@ -1,12 +1,12 @@
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.enums.enum_status import EnumStatus
+from app.items.enums.enum_status import EnumStatus
 
 
 class UpdateItem(BaseModel):
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         from_attributes=True,
         json_schema_extra={

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
 
-from app.route import router
+from app.items.route import router
 
 app = FastAPI()
 

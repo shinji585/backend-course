@@ -1,17 +1,17 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
 
-from app.enums.enum_status import EnumStatus
-from app.schemas.base import BaseItem
+from app.items.enums.enum_status import EnumStatus
+from app.items.schemas.base import BaseItem
 
 
 class OutItem(BaseItem):
     id: Annotated[uuid.UUID, Field(description="Unique identifier")]
     status: Annotated[EnumStatus, Field(default=EnumStatus.PENDING)]
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="ignore",
         from_attributes=True,
         json_schema_extra={

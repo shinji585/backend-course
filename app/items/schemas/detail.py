@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
 
-from app.enums.enum_status import EnumStatus
-from app.schemas.base import BaseItem
+from app.items.enums.enum_status import EnumStatus
+from app.items.schemas.base import BaseItem
 
 
 class DetailItem(BaseItem):
@@ -13,7 +13,7 @@ class DetailItem(BaseItem):
     status: Annotated[EnumStatus, Field(default=EnumStatus.PENDING)]
     created_at: Annotated[datetime, Field(default_factory=datetime.now)]
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         from_attributes=True,
         json_schema_extra={
