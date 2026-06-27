@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from app.dependencies.security import get_user_service
-from app.users.schemas import CreateUser, DetailUser, OutUser, UpdateUser
+from app.users.schemas import CreateUser, OutUser, UpdateUser
 from app.users.service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -28,7 +28,7 @@ async def create_users(user_in: CreateUser, service: Annotated[UserService, Depe
     status_code=status.HTTP_200_OK,
     summary="List all users",
 )
-async def list_items(service: Annotated[UserService, Depends(get_user_service)]):
+async def get_users(service: Annotated[UserService, Depends(get_user_service)]):
     users = service.listUsers()
 
     if not users:
@@ -44,7 +44,10 @@ async def list_items(service: Annotated[UserService, Depends(get_user_service)])
     status_code=status.HTTP_200_OK,
     description="This route retrieves the full details of a specific user by its unique identifier.",
 )
-async def get_user_by_id(id: uuid.UUID, service: Annotated[UserService, Depends(get_user_service)]):
+async def get_user_by_id(
+    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    service: Annotated[UserService, Depends(get_user_service)],
+):
     user = service.get_user_by_id(id)
 
     if user is None:
@@ -61,7 +64,9 @@ async def get_user_by_id(id: uuid.UUID, service: Annotated[UserService, Depends(
     description="Updates selected fields of an existing item by ID without replacing the entire resource.",
 )
 async def update_user(
-    id: uuid.UUID, user_update: UpdateUser, service: Annotated[UserService, Depends(get_user_service)]
+    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    user_update: UpdateUser,
+    service: Annotated[UserService, Depends(get_user_service)],
 ):
     updated_user = service.update_data(id, user_update)
 
@@ -73,12 +78,15 @@ async def update_user(
 
 @router.delete(
     "/{user_id}",
-    response_model=dict[str, DetailUser] | None,
+    response_model=dict[str, OutUser] | None,
     summary="Delete user by ID",
     status_code=status.HTTP_200_OK,
     description="This route delete an user by its id",
 )
-async def delete_user(id: uuid.UUID, service: Annotated[UserService, Depends(get_user_service)]):
+async def delete_user(
+    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    service: Annotated[UserService, Depends(get_user_service)],
+):
     user = service.deleteUser(id)
 
     if user is None:
