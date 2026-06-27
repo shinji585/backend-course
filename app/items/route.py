@@ -1,9 +1,9 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from app.items.schemas import CreateItem, DetailItem, OutItem, UpdateItem
+from app.items.schemas import CreateItem, OutItem, UpdateItem
 from app.items.service import ItemServices
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -27,8 +27,12 @@ async def create_item(item_in: CreateItem, service: Annotated[ItemServices, Depe
     status_code=status.HTTP_200_OK,
     summary="List all items",
 )
-async def list_items(service: Annotated[ItemServices, Depends()]):
-    items = service.listItems()
+async def list_items(
+    service: Annotated[ItemServices, Depends()],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum number of items to return")] = 20,
+):
+    items = service.listItems(offset, limit)
 
     if not items:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't items on the list")
@@ -38,13 +42,14 @@ async def list_items(service: Annotated[ItemServices, Depends()]):
 
 @router.get(
     "/{item_id}",
-    response_model=DetailItem,
+    response_model=OutItem,
     summary="Get item by ID",
     status_code=status.HTTP_200_OK,
     description="This route retrieves the full details of a specific item by its unique identifier.",
 )
 async def get_item(
-    item_id: Annotated[uuid.UUID, Path(description="ID of the item")], service: Annotated[ItemServices, Depends()]
+    item_id: Annotated[uuid.UUID, Path(description="ID of the item")],
+    service: Annotated[ItemServices, Depends()],
 ):
     item = service.getItemDetail(item_id)
 
@@ -56,13 +61,14 @@ async def get_item(
 
 @router.delete(
     "/{item_id}",
-    response_model=dict[str, DetailItem] | None,
+    response_model=dict[str, OutItem] | None,
     summary="Delete item by ID",
     status_code=status.HTTP_200_OK,
     description="This route delete an item by its id",
 )
 async def delete_item(
-    item_id: Annotated[uuid.UUID, Path(description="ID of the item")], service: Annotated[ItemServices, Depends()]
+    item_id: Annotated[uuid.UUID, Path(description="ID of the item")],
+    service: Annotated[ItemServices, Depends()],
 ):
     item = service.deleteItem(item_id)
 
@@ -73,7 +79,7 @@ async def delete_item(
 
 @router.patch(
     "/{item_id}",
-    response_model=DetailItem,
+    response_model=OutItem,
     status_code=status.HTTP_200_OK,
     summary="Partially update an item",
     description="Updates selected fields of an existing item by ID without replacing the entire resource.",

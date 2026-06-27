@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.dependencies.security import get_user_service
 from app.users.schemas import CreateUser, OutUser, UpdateUser
@@ -28,8 +28,12 @@ async def create_users(user_in: CreateUser, service: Annotated[UserService, Depe
     status_code=status.HTTP_200_OK,
     summary="List all users",
 )
-async def get_users(service: Annotated[UserService, Depends(get_user_service)]):
-    users = service.listUsers()
+async def get_users(
+    service: Annotated[UserService, Depends(get_user_service)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum number of users to return")] = 20,
+):
+    users = service.listUsers(offset, limit)
 
     if not users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't users on the list")
@@ -45,10 +49,10 @@ async def get_users(service: Annotated[UserService, Depends(get_user_service)]):
     description="This route retrieves the full details of a specific user by its unique identifier.",
 )
 async def get_user_by_id(
-    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    user_id: Annotated[uuid.UUID, Path(description="The id of the user")],
     service: Annotated[UserService, Depends(get_user_service)],
 ):
-    user = service.get_user_by_id(id)
+    user = service.get_user_by_id(user_id)
 
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -64,11 +68,11 @@ async def get_user_by_id(
     description="Updates selected fields of an existing item by ID without replacing the entire resource.",
 )
 async def update_user(
-    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    user_id: Annotated[uuid.UUID, Path(description="The id of the user")],
     user_update: UpdateUser,
     service: Annotated[UserService, Depends(get_user_service)],
 ):
-    updated_user = service.update_data(id, user_update)
+    updated_user = service.update_data(user_id, user_update)
 
     if updated_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -84,10 +88,10 @@ async def update_user(
     description="This route delete an user by its id",
 )
 async def delete_user(
-    id: Annotated[uuid.UUID, Path(description="The id of the user")],
+    user_id: Annotated[uuid.UUID, Path(description="The id of the user")],
     service: Annotated[UserService, Depends(get_user_service)],
 ):
-    user = service.deleteUser(id)
+    user = service.deleteUser(user_id)
 
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

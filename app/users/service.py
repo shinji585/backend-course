@@ -44,8 +44,8 @@ class UserService:
                 return OutUser.model_validate(user)
         return None
 
-    def listUsers(self) -> list[OutUser]:
-        return [OutUser.model_validate(x) for x in self.repository]
+    def listUsers(self, offset: int, limit: int) -> list[OutUser]:
+        return [OutUser.model_validate(x) for x in self.repository[offset:limit]]
 
     def deleteUser(self, user_id: uuid.UUID) -> dict[str, OutUser] | None:
         for i, user in enumerate(self.repository):
