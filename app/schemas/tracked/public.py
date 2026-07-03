@@ -5,9 +5,9 @@ from typing import Annotated
 from pydantic import ConfigDict, Field
 
 from app.schemas.enums import Status
-from app.schemas.items.base import TrackedProductBase
 from app.schemas.price import Price
 from app.schemas.tags import PublicTag
+from app.schemas.tracked.base import TrackedProductBase
 
 
 class TrackedProductPublic(TrackedProductBase):

@@ -3,8 +3,8 @@ from typing import Annotated
 from pydantic import ConfigDict, Field
 
 from app.schemas.enums import Status
-from app.schemas.items.base import TrackedProductBase
 from app.schemas.tags import BaseTag
+from app.schemas.tracked.base import TrackedProductBase
 
 
 class TrackedProductCreate(TrackedProductBase):
@@ -32,7 +32,7 @@ class TrackedProductCreate(TrackedProductBase):
                     ),
                     "quantity": 1,
                     "target_price": {"amount": 1800, "currency": "USD"},
-                    "tags": ["Gaming", "Work"],
+                    "tags_name": ["Gaming", "Work"],
                     "status": "tracking",
                 },
                 {"name": "iPhone 16 Pro Max", "quantity": 1, "status": "tracking"},

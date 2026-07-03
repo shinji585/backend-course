@@ -7,4 +7,4 @@ from app.schemas.tags.public import PublicTag
 
 
 class InternalTag(PublicTag):
-    owner_id: Annotated[uuid.UUID, Field(description="Owner ID")]
+    owner_id: Annotated[uuid.UUID | None, Field(description="Owner ID")] = Field(default=None)

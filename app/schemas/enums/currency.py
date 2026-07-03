@@ -1,9 +1,9 @@
-from enum import StrEnum
+from enum import StrEnum, auto
 
 
 class Currency(StrEnum):
-    MXN = "MXN"
-    COP = "COP"
-    USD = "USD"
-    BRL = "BRL"
-    ARS = "ARS"
+    MXN = auto()
+    COP = auto()
+    USD = auto()
+    BRL = auto()
+    ARS = auto()

@@ -2,9 +2,11 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.enums.tags import Tags
+
 
 class BaseTag(BaseModel):
-    name: Annotated[str, Field(..., ge=1, le=50)]
+    name: Annotated[str, Field(..., min_length=1, max_length=50)] = Tags.DEFAULT
 
     model_config = ConfigDict(
         extra="forbid",

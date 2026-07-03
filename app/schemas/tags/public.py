@@ -7,7 +7,7 @@ from app.schemas.tags.base import BaseTag
 
 
 class PublicTag(BaseTag):
-    id: Annotated[uuid.UUID, Field(description="Tag ID")]
+    id: Annotated[uuid.UUID, Field(description="Tag ID")] = Field(default_factory=uuid.uuid4)
 
     model_config = ConfigDict(
         json_schema_extra={
