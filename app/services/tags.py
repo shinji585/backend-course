@@ -15,7 +15,7 @@ logger_file.parent.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     filename=str(logger_file),
-    format="%(asctime)s %(levelname)s: %(message)s",
+    format="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
     level=logging.INFO,
 )
 
@@ -30,7 +30,7 @@ def requires_initialization(default_return: Any = None, *, default_factory: Call
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
-            if not getattr(self, "data", None):
+            if getattr(self, "data", None) is None:
                 logger.error("Services not initialized. Call set_config_path() first.")
                 if default_factory is not None:
                     return default_factory()
@@ -75,7 +75,7 @@ class TagsServices:
             return self._create_default()
 
     def _create_default(self) -> dict[str, Any]:
-        default = {"tags": [], "version": 1}
+        default = {"tags": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
         self._save(default)
         return default
 
@@ -109,25 +109,30 @@ class TagsServices:
         assert self.data is not None
         try:
             if tags is None:
-                new_tag: dict[str, Any] = InternalTag().model_dump()
+                new_tag: dict[str, Any] = InternalTag().model_dump(mode="json")
                 self.data["tags"].append(new_tag)
                 self.data["version"] += 1
-                self.data["last_updated"] = datetime.now(UTC)
+                self.data["last_updated"] = datetime.now(UTC).isoformat()
 
                 if self._save():
                     logger.info(f"Tag added: {new_tag['name']} (v{self.data['version']})")
-                    return PublicTag.model_validate(new_tag)
+                    return PublicTag.model_validate({k: v for k, v in new_tag.items() if k in PublicTag.model_fields})
                 return False
 
             instances: list[InternalTag] = [InternalTag(name=t) for t in tags]
 
-            self.data["tags"].extend(i.model_dump() for i in instances)
+            self.data["tags"].extend(i.model_dump(mode="json") for i in instances)
             self.data["version"] += 1
-            self.data["last_updated"] = datetime.now(UTC)
+            self.data["last_updated"] = datetime.now(UTC).isoformat()
 
             if self._save():
                 logger.info(f"Tags added: {[tag.name for tag in instances]} (v{self.data['version']})")
-                return [PublicTag.model_validate(i.model_dump()) for i in instances]
+                return [
+                    PublicTag.model_validate(
+                        {k: v for k, v in i.model_dump(exclude_unset=True).items() if k in PublicTag.model_fields}
+                    )
+                    for i in instances
+                ]
             return False
         except Exception as e:
             logger.error(f"Failed to add tag: {e}")
@@ -142,7 +147,7 @@ class TagsServices:
 
             if len(self.data["tags"]) < original_count:
                 self.data["version"] += 1
-                self.data["last_updated"] = datetime.now(UTC)
+                self.data["last_updated"] = datetime.now(UTC).isoformat()
 
                 if self._save():
                     logger.info(f"Tag removed: {tag_id} (v{self.data['version']})")
@@ -166,7 +171,7 @@ class TagsServices:
             tag.update(kwargs)
             tag["updated_at"] = datetime.now(UTC)
             self.data["version"] += 1
-            self.data["last_updated"] = datetime.now(UTC)
+            self.data["last_updated"] = datetime.now(UTC).isoformat()
 
             if self._save():
                 logger.info(f"Tag updated: {tag_id} (v{self.data['version']})")
