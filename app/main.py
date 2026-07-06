@@ -1,23 +1,10 @@
-from fastapi import FastAPI
-from scalar_fastapi import get_scalar_api_reference
+from pathlib import Path
 
-from app.items import items_router
-from app.users import users_router
+from app.services.tags import TagsServices
 
-app = FastAPI()
+if __name__ == "__main__":
+    data_path = Path(__file__).absolute().parent / "db" / "data" / "tagsData.json"
 
-routers = [items_router, users_router]
+    object_value = TagsServices(config_path=data_path)
 
-
-for router in routers:
-    app.include_router(router=router)
-
-
-@app.get("/")
-async def read_root():
-    return {"message": "Hello from FastAPI with Scalar!"}
-
-
-@app.get("/scalar", include_in_schema=False)
-async def scalar_html():
-    return get_scalar_api_reference(openapi_url=app.openapi_url, title="BuyPlanner Documentation Scalar")
+    print(object_value.add_tag())
