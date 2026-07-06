@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .vscode
+
+# logs and data 
+/logger/
+app/db/data/*.json
