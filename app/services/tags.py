@@ -23,28 +23,48 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def requires_initialization(
-    default_return: Any = None, *, default_factory: Callable[[], Any] | None = None, auto_init: bool = False
+    default_return: Any = None,
+    *,
+    default_factory: Callable[[], Any] | None = None,
+    auto_init: bool = False,
 ):
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
             if getattr(self, "data", None) is None:
+                # Load existing data; let _load_data_if_exits manage JSON / backup logic.
                 try:
                     if hasattr(self, "_load_data_if_exits"):
                         self.data = self._load_data_if_exits()
-                except Exception:
+                except (OSError, ValueError) as exc:
+                    # Only swallow expected environment/config issues.
+                    logger.exception(
+                        "Error while loading data via %s._load_data_if_exits: %s",
+                        type(self).__name__,
+                        exc,
+                    )
                     self.data = getattr(self, "data", None)
+
                 if self.data is None and auto_init:
                     if hasattr(self, "_create_default"):
                         try:
+                            # Keep original semantics: call _create_default and swallow expected errors.
                             self.data = self._create_default()
-                        except Exception:
+                        except (OSError, ValueError) as exc:
+                            logger.exception(
+                                "Error while creating default data via %s._create_default: %s",
+                                type(self).__name__,
+                                exc,
+                            )
+                            # Preserve your existing fallback
                             self.data = getattr(self, "data", None)
+
                 if getattr(self, "data", None) is None:
                     logger.error("Services not initialized. Call set_config_path() first.")
                     if default_factory is not None:
                         return default_factory()
                     return default_return
+
             return func(self, *args, **kwargs)
 
         return wrapper
@@ -153,6 +173,7 @@ class TagsServices:
                 return False
 
             public_results: list[PublicTag] = []
+            newly_created: list[InternalTag] = []
 
             for name in tags:
                 found = self._search_by_name(name_tag=name)
@@ -163,17 +184,22 @@ class TagsServices:
                 inst = InternalTag(name=name)
                 dumped = inst.model_dump(mode="json")
                 self.data["tags"].append(dumped)
+
+                newly_created.append(inst)
                 public_results.append(
                     PublicTag.model_validate({k: v for k, v in dumped.items() if k in PublicTag.model_fields})
                 )
-            instances: list[InternalTag] = [InternalTag(name=t) for t in tags]
+
+            if not newly_created:
+                return public_results
 
             self.data["version"] += 1
             self.data["last_updated"] = datetime.now(UTC).isoformat()
 
             if self._save():
-                logger.info(f"Tags added: {[tag.name for tag in instances]} (v{self.data['version']})")
+                logger.info(f"Tags added: {[tag.name for tag in newly_created]} (v{self.data['version']})")
                 return public_results
+
             return False
         except Exception as e:
             logger.error(f"Failed to add tag: {e}")
