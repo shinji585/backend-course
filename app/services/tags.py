@@ -10,7 +10,7 @@ from typing import Any, Literal
 from app.schemas.tags import InternalTag, PublicTag
 
 # build the logger capert
-logger_file: Path = Path(__file__).resolve().parents[2] / "logger" / "logger.info"
+logger_file: Path = Path(__file__).resolve().parents[2] / "logger" / "TagLogger.info"
 logger_file.parent.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
@@ -151,8 +151,8 @@ class TagsServices:
 
     @requires_initialization(auto_init=True, default_return=False)
     def add_tag(self, tags: list[str] | None = None) -> PublicTag | list[PublicTag] | Literal[False]:
-
         assert self.data is not None
+
         try:
             if tags is None:
                 temp = InternalTag()
