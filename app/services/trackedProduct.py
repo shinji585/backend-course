@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -187,3 +188,30 @@ class TrackedProductServices:
         except Exception as e:
             logger.error(f"Failed to create tracked product: {e}")
             return False
+
+    @requires_initialization(default_return=False)
+    def remove(self, tracked_product_id: uuid.UUID) -> bool:
+        assert self.data is not None
+        if matched := next((tp for tp in self.data["tracked_products"] if tp["id"] == tracked_product_id), None):
+            self.data["tracked_products"].remove(matched)
+            return True
+
+        return False
+
+    @requires_initialization(default_return=None)
+    def get(self, tracked_product_id: uuid.UUID) -> TrackedProductPublic | None:
+        assert self.data is not None
+        return (
+            TrackedProductPublic.model_validate(tracked_data)
+            if (
+                tracked_data := next(
+                    filter(lambda tracked: tracked["id"] == tracked_product_id, self.data["tracked_products"]),
+                    None,
+                )
+            )
+            else None
+        )
+
+    @requires_initialization(default_return=[])
+    def get_all(self) -> Any | list[Any]:
+        return self.data.get("tracked_products", []) if self.data else []

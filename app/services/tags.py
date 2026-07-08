@@ -265,5 +265,6 @@ class TagsServices:
     def get_version(self) -> int:
         return self.data.get("version", 1) if self.data else 1
 
+    @requires_initialization(default_return=[])
     def get_all_tags(self):
         return self.data.get("tags", []) if self.data else []
