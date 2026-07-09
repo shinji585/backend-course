@@ -240,5 +240,5 @@ class TrackedProductServices:
             else None
         )
 
-    def get_all(self) -> Any | list[Any]:
+    def get_all(self):
         return self.data.get("tracked_products", []) if self.data else []
