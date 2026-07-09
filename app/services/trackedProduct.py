@@ -194,9 +194,37 @@ class TrackedProductServices:
         assert self.data is not None
         if matched := next((tp for tp in self.data["tracked_products"] if tp["id"] == tracked_product_id), None):
             self.data["tracked_products"].remove(matched)
-            return True
+
+            if self._save():
+                logger.info(f"Tracked product removed: {tracked_product_id} (v{self.data['version']})")
+                return True
 
         return False
+
+    @requires_initialization(default_return=False)
+    def update(self, tracked_product_id: uuid.UUID, **kwargs):
+        assert self.data is not None
+
+        try:
+            tracked_product: Any | None = next(
+                (tp for tp in self.data["tracked_products"] if tp["id"] == tracked_product_id), None
+            )
+
+            if not tracked_product:
+                logger.warning(f"Tracked product not found: {tracked_product_id}")
+                return False
+
+            tracked_product.update(kwargs)
+            tracked_product["updated_at"] = datetime.now(UTC)
+            self.data["version"] += 1
+            self.data["last_updated"] = datetime.now(UTC).isoformat()
+
+            if self._save():
+                logger.info(f"Tracked product updated: {tracked_product_id} (v{self.data['version']})")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update tracked product: {e}")
+            return False
 
     @requires_initialization(default_return=None)
     def get(self, tracked_product_id: uuid.UUID) -> TrackedProductPublic | None:
