@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.price.enums import Currency
+from app.schemas.enums.currency import Currency
 
 
 class Price(BaseModel):

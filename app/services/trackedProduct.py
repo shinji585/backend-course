@@ -75,7 +75,7 @@ def requires_initialization(
 
 
 class TrackedProductServices:
-    TAG_SERVICES = TagsServices(config_path=Path(__file__).absolute().parent / "db" / "data" / "tagsData.json")
+    TAG_SERVICES = TagsServices(config_path=Path(__file__).absolute().parents[1] / "db" / "data" / "tagsData.json")
 
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path: Path | None = config_path
@@ -159,7 +159,7 @@ class TrackedProductServices:
                 # validate that it is a list
                 if isinstance(result, list):
                     ids = [tag.id for tag in result]
-                    data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude_unset=True))
+                    data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude={"tags_name"}))
                     data.tags_id = ids
                     self.data["tracked_products"].append(data.model_dump(mode="json"))
                     self.data["version"] += 1
@@ -173,7 +173,7 @@ class TrackedProductServices:
                     return None
 
                 if isinstance(result, PublicTag):
-                    data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude_unset=True))
+                    data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude={"tags_name"}))
                     data.tags_id.append(result.id)
                     self.data["tracked_products"].append(data.model_dump(mode="json"))
                     self.data["version"] += 1
