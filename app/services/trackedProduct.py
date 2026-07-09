@@ -240,6 +240,5 @@ class TrackedProductServices:
             else None
         )
 
-    @requires_initialization(default_return=[])
     def get_all(self) -> Any | list[Any]:
         return self.data.get("tracked_products", []) if self.data else []
