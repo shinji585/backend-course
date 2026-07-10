@@ -1,5 +1,4 @@
 import json
-import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -7,19 +6,10 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
 
+from app.core.logging import get_logger
 from app.schemas.tags import InternalTag, PublicTag
 
-# build the logger capert
-logger_file: Path = Path(__file__).resolve().parents[2] / "logger" / "TagLogger.info"
-logger_file.parent.mkdir(parents=True, exist_ok=True)
-
-logging.basicConfig(
-    filename=str(logger_file),
-    format="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
-    level=logging.INFO,
-)
-
-logger: logging.Logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def requires_initialization(

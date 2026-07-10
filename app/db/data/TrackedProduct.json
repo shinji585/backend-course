@@ -10,15 +10,15 @@
       },
       "owner_id": null,
       "tags_id": [
-        "e092935f-058f-4c55-b77f-4fd5e75c0f13"
+        "b9652ea1-e7a4-41e3-95c9-72f18c02dc5b"
       ],
-      "id": "16a58d86-afb4-482b-a222-cb4f39247fdb",
+      "id": "a287ddf3-a48c-4498-bda1-70724d0f11ba",
       "current_price": null,
-      "created_at": "2026-07-09T00:52:37.424997Z",
+      "created_at": "2026-07-10T22:53:53.536392Z",
       "updated_at": null,
       "status": "tracking"
     }
   ],
-  "last_updated": "2026-07-09T00:52:37.425201+00:00",
+  "last_updated": "2026-07-10T22:53:53.536501+00:00",
   "version": 2
 }

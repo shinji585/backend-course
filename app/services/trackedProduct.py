@@ -1,5 +1,4 @@
 import json
-import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -7,21 +6,12 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
 
+from app.core.logging import get_logger
 from app.schemas.tags.public import PublicTag
 from app.schemas.tracked import TrackedProductCreate, TrackedProductInternal, TrackedProductPublic
 from app.services.tags import TagsServices
 
-logger_file: Path = Path(__file__).resolve().parents[2] / "logger" / "TrackedProducts.info"
-logger_file.parent.mkdir(parents=True, exist_ok=True)
-
-# build the logger capert
-logging.basicConfig(
-    filename=str(logger_file),
-    format="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
-    level=logging.INFO,
-)
-
-logger: logging.Logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def requires_initialization(
@@ -167,13 +157,14 @@ class TrackedProductServices:
 
                     if self._save():
                         logger.info(f"Tracked Product added: {data.name} (v{self.data['version']})")
-                        public = TrackedProductPublic.model_validate(data.model_dump(exclude_unset=True))
-                        public.tags.extend(result)
-                        return public
+                        pyload = {**data.model_dump(exclude={"tags_id", "owner_id"}), "tags": result}
+                        return TrackedProductPublic.model_validate(pyload)
                     return None
 
                 if isinstance(result, PublicTag):
-                    data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude={"tags_name"}))
+                    data: TrackedProductInternal = TrackedProductInternal.model_validate(
+                        tracked_product.model_dump(exclude={"tags_name"})
+                    )
                     data.tags_id.append(result.id)
                     self.data["tracked_products"].append(data.model_dump(mode="json"))
                     self.data["version"] += 1
@@ -181,7 +172,8 @@ class TrackedProductServices:
 
                     if self._save():
                         logger.info(f"Tracked Product added: {data.name} (v{self.data['version']})")
-                        return TrackedProductPublic.model_validate(data.model_dump(exclude_unset=True))
+                        pyload = {**data.model_dump(exclude={"tags_id", "owner_id"}), "tags": [result]}
+                        return TrackedProductPublic.model_validate(pyload)
                 return None
             return None
 
@@ -240,5 +232,7 @@ class TrackedProductServices:
             else None
         )
 
+    # this method needs to chang because the data returned is not allowed, data here has fields that are private
+    # this data needs to live in the server
     def get_all(self):
         return self.data.get("tracked_products", []) if self.data else []

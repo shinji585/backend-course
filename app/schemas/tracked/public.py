@@ -12,12 +12,12 @@ from app.schemas.tracked.base import TrackedProductBase
 
 class TrackedProductPublic(TrackedProductBase):
     id: Annotated[uuid.UUID, Field(description="Tracked product ID.")]
-    current_price: Annotated[Price, Field(..., description="Current price found.")]
+    current_price: Annotated[Price | None, Field(..., description="Current price found.")]
     created_at: Annotated[
         datetime, Field(default_factory=lambda: datetime.now(UTC), description="When tracking started.")
     ]
     status: Annotated[Status, Field(description="Describe the status of the tracked product.")]
-    updated_at: Annotated[datetime, Field(..., description="Last modification made to the tracked product.")]
+    updated_at: Annotated[datetime | None, Field(..., description="Last modification made to the tracked product.")]
     tags: Annotated[list[PublicTag], Field(description="List of tags names.")]
 
     model_config = ConfigDict(
