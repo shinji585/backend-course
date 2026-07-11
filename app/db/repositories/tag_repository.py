@@ -1,60 +1,13 @@
 import json
 import uuid
-from collections.abc import Callable
 from datetime import UTC, datetime
-from functools import wraps
 from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
+from app.db.repositories.base import requires_initialization
 
 logger = get_logger(__name__)
-
-
-def requires_initialization(
-    default_return: Any = None,
-    *,
-    default_factory: Callable[[], Any] | None = None,
-    auto_init: bool = False,
-):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if getattr(self, "data", None) is None:
-                try:
-                    if hasattr(self, "_load_data_if_exits"):
-                        self.data = self._load_data_if_exits()
-                except (OSError, ValueError) as exc:
-                    logger.exception(
-                        "Error while loading data via %s._load_data_if_exits: %s",
-                        type(self).__name__,
-                        exc,
-                    )
-                    self.data = getattr(self, "data", None)
-
-                if self.data is None and auto_init:
-                    if hasattr(self, "_create_default"):
-                        try:
-                            self.data = self._create_default()
-                        except (OSError, ValueError) as exc:
-                            logger.exception(
-                                "Error while creating default data via %s._create_default: %s",
-                                type(self).__name__,
-                                exc,
-                            )
-                            self.data = getattr(self, "data", None)
-
-                if getattr(self, "data", None) is None:
-                    logger.error("Repository not initialized. Call set_config_path() first.")
-                    if default_factory is not None:
-                        return default_factory()
-                    return default_return
-
-            return func(self, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 class TagRepository:
@@ -112,8 +65,8 @@ class TagRepository:
             logger.error(f"Failed to save: {e}")
             return False
 
-    @requires_initialization(auto_init=True, default_factory=list)
-    def find_all(self) -> list[dict]:
+    @requires_initialization(auto_init=True, default_return=None)
+    def find_all(self) -> list[dict] | None:
         assert self.data is not None
         return self.data["tags"]
 
