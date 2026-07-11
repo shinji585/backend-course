@@ -87,7 +87,7 @@ class TrackedProductServices:
             | {"tags": [self.TAG_SERVICES.get_tag(tag_id=tag_id) for tag_id in tracked_data["tags_id"]]}
         )
 
-    def get_all(self) -> list[TrackedProductPublic]:
+    def get_all(self, limit: int, offset: int) -> list[TrackedProductPublic]:
         return [
             TrackedProductPublic.model_validate(
                 {k: v for k, v in product.items() if k not in {"tags_id", "owner_id"}}
@@ -99,5 +99,5 @@ class TrackedProductServices:
                     ]
                 }
             )
-            for product in self._repo.find_all()
+            for product in self._repo.find_all()[offset : offset + limit]
         ]

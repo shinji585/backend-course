@@ -1,22 +1,30 @@
-from decimal import Decimal
-from pathlib import Path
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from scalar_fastapi import get_scalar_api_reference
 
-from app.schemas.enums.currency import Currency
-from app.schemas.price.price import Price
-from app.schemas.tracked.create import TrackedProductCreate
-from app.services.trackedProduct import TrackedProductServices
+from app.routers import trackedProductRouter
 
-if __name__ == "__main__":
-    data_path = Path(__file__).absolute().parent / "db" / "data" / "TrackedProduct.json"
+app = FastAPI(
+    title="TrackBuy API",
+    description="""
+A REST API for managing tracked products.
 
-    object_value = TrackedProductServices(config_path=data_path)
+Users can create tracked products with specific criteria such as target price,
+condition, color, and other preferences. The API is designed to support
+future integrations with online marketplaces (e.g., Amazon and Mercado Libre)
+to monitor product availability and pricing.
+""",
+    version="0.1.0",
+)
 
-    tracked_product = TrackedProductCreate(
-        name="MacBook Pro",
-        description="14 Pulgadas, 256GB, 10 Nucleos, GPU 10 Nucleos",
-        target_price=Price(amount=Decimal(999.99), currency=Currency.USD),
-        quantity=4,
-    )
+app.include_router(router=trackedProductRouter.router)
 
-    print(object_value.create(tracked_product=tracked_product))
-    print(object_value.get_all())
+
+@app.get("/")
+async def root():
+    return {"name": "TrackBuy API", "version": "0.1.0"}
+
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_html() -> HTMLResponse:
+    return get_scalar_api_reference(openapi_url=app.openapi_url, title="Tracked product Documentation Scalar")
