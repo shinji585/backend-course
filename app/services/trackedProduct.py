@@ -222,7 +222,10 @@ class TrackedProductServices:
     def get(self, tracked_product_id: uuid.UUID) -> TrackedProductPublic | None:
         assert self.data is not None
         return (
-            TrackedProductPublic.model_validate(tracked_data)
+            TrackedProductPublic.model_validate(
+                {k: v for k, v in tracked_data.items() if k not in ("tags_id", "owner_id")}
+                | {"tags": [self.TAG_SERVICES.get_tag(tag_id=tag_id) for tag_id in tracked_data["tags_id"]]}
+            )
             if (
                 tracked_data := next(
                     filter(lambda tracked: tracked["id"] == tracked_product_id, self.data["tracked_products"]),
@@ -234,5 +237,12 @@ class TrackedProductServices:
 
     # this method needs to chang because the data returned is not allowed, data here has fields that are private
     # this data needs to live in the server
-    def get_all(self):
-        return self.data.get("tracked_products", []) if self.data else []
+    def get_all(self) -> list[TrackedProductPublic]:
+        assert self.data is not None
+        return [
+            TrackedProductPublic.model_validate(
+                {k: v for k, v in product.items() if k not in ("tags_id", "owner_id")}
+                | {"tags": [self.TAG_SERVICES.get_tag(tag_id=tag_id) for tag_id in product["tags_id"]]}
+            )
+            for product in self.data["tracked_products"]
+        ]

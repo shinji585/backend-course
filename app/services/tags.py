@@ -242,7 +242,7 @@ class TagsServices:
     def get_tag(self, tag_id: uuid.UUID) -> PublicTag | None:
         assert self.data is not None
         return (
-            PublicTag.model_validate(tag_data)
+            PublicTag.model_validate({k: v for k, v in tag_data.items() if k not in ("owner_id", "created_at")})
             if (
                 tag_data := next(
                     filter(lambda tag: tag["id"] == tag_id, self.data["tags"]),

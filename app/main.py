@@ -12,10 +12,11 @@ if __name__ == "__main__":
     object_value = TrackedProductServices(config_path=data_path)
 
     tracked_product = TrackedProductCreate(
-        name="iPhone 15 Pro Max",
-        description="256GB, Titanium Blue, unlocked",
+        name="MacBook Pro",
+        description="14 Pulgadas, 256GB, 10 Nucleos, GPU 10 Nucleos",
         target_price=Price(amount=Decimal(999.99), currency=Currency.USD),
         quantity=4,
     )
 
     print(object_value.create(tracked_product=tracked_product))
+    print(object_value.get_all())
