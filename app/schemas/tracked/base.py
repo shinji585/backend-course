@@ -10,10 +10,10 @@ class TrackedProductBase(BaseModel):
     description: Annotated[
         str | None,
         Field(
-            default=None, min_length=100, max_length=1000, description="User notes (color, storage, preferences, etc.)"
+            default=None, min_length=1, max_length=1000, description="User notes (color, storage, preferences, etc.)"
         ),
     ]
-    quantity: Annotated[..., int, Field(ge=1, le=5, description="Desired quantity.")]
+    quantity: Annotated[int, Field(..., ge=1, le=5, description="Desired quantity.")]
     target_price: Annotated[Price | None, Field(default=None, description="Target price for notification")]
 
     model_config = ConfigDict(

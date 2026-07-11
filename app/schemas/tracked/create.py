@@ -10,11 +10,11 @@ from app.schemas.tracked.base import TrackedProductBase
 class TrackedProductCreate(TrackedProductBase):
     tags_name: Annotated[
         list[BaseTag] | None,
-        Field(default=None, description="List of tag names used to organize the item.", alias="tags"),
-    ]
-    status: Annotated[
-        Status, Field(default_factory=lambda: Status.TRACKING, description="Current tracking status of the product.")
-    ]
+        Field(description="List of tag names used to organize the item.", alias="tags"),
+    ] = Field(default=None)
+    status: Annotated[Status, Field(description="Current tracking status of the product.")] = Field(
+        default_factory=lambda: Status.TRACKING
+    )
 
     model_config = ConfigDict(
         extra="forbid",

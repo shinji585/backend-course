@@ -1,10 +1,22 @@
+from decimal import Decimal
 from pathlib import Path
 
-from app.services.tags import TagsServices
+from app.schemas.enums.currency import Currency
+from app.schemas.price.price import Price
+from app.schemas.tracked.create import TrackedProductCreate
+from app.services.trackedProduct import TrackedProductServices
 
 if __name__ == "__main__":
-    data_path = Path(__file__).absolute().parent / "db" / "data" / "tagsData.json"
+    data_path = Path(__file__).absolute().parent / "db" / "data" / "TrackedProduct.json"
 
-    object_value = TagsServices(config_path=data_path)
+    object_value = TrackedProductServices(config_path=data_path)
 
-    print(object_value.add_tag())
+    tracked_product = TrackedProductCreate(
+        name="MacBook Pro",
+        description="14 Pulgadas, 256GB, 10 Nucleos, GPU 10 Nucleos",
+        target_price=Price(amount=Decimal(999.99), currency=Currency.USD),
+        quantity=4,
+    )
+
+    print(object_value.create(tracked_product=tracked_product))
+    print(object_value.get_all())
