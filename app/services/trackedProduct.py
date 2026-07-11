@@ -242,7 +242,13 @@ class TrackedProductServices:
         return [
             TrackedProductPublic.model_validate(
                 {k: v for k, v in product.items() if k not in ("tags_id", "owner_id")}
-                | {"tags": [tag for tag_id in product["tags_id"] if (tag := self.TAG_SERVICES.get_tag(tag_id=tag_id))]}
+                | {
+                    "tags": [
+                        tag
+                        for tag_id in product["tags_id"]
+                        if (tag := self.TAG_SERVICES.get_tag(tag_id=tag_id)) is not None
+                    ]
+                }
             )
             for product in self.data["tracked_products"]
         ]
