@@ -28,14 +28,14 @@ router = APIRouter(prefix="/trackedProducts", tags=["trackedProducts"])
     ),
 )
 def create(
-    pyaload: TrackedProductCreate, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
+    payload: TrackedProductCreate, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
 ) -> TrackedProductPublic:
-    result: TrackedProductPublic | None | Literal[False] = service.create(tracked_product=pyaload)
+    result: TrackedProductPublic | None | Literal[False] = service.create(tracked_product=payload)
 
     if result is False:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error")
     if result is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Couldnot create tracked product")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create tracked product")
 
     return result
 
@@ -108,7 +108,7 @@ def update(
     result: bool = service.update(tracked_product_id=tracked_product_id, **payload.model_dump(exclude_unset=True))
 
     if not result:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")
 
     return {"message": "Tracked product updated successfully", "updated": result}
 
