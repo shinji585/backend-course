@@ -105,7 +105,9 @@ def update(
     payload: TrackedProductUpdate,
     service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> dict[str, Any]:
-    result: bool = service.update(tracked_product_id=tracked_product_id, **payload.model_dump(exclude_unset=True))
+    result: bool = service.update(
+        tracked_product_id=tracked_product_id, **payload.model_dump(exclude_unset=True, mode="json")
+    )
 
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")

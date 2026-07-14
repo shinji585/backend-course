@@ -25,7 +25,7 @@ class TrackedProductServices:
     def create(self, tracked_product: TrackedProductCreate) -> TrackedProductPublic | None | Literal[False]:
         try:
             names: list[str] | None = (
-                [tag.name for tag in tracked_product.tags_name] if tracked_product.tags_name else None
+                [name.strip().lower() for name in tracked_product.tags_name] if tracked_product.tags_name else None
             )
 
             result: PublicTag | list[PublicTag] | Literal[False] = self.TAG_SERVICES.add_tag(tags=names)
