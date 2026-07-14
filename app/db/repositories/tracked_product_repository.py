@@ -1,5 +1,4 @@
 import json
-import traceback
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -67,8 +66,7 @@ class TrackedProductRepository:
             return True
         except Exception as e:
             logger.error(f"Failed to save: {e}")
-            traceback.print_exc()
-            raise
+            return False
 
     def find_all(self) -> list[dict]:
         assert self.data is not None

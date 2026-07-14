@@ -10,11 +10,11 @@ class Price(BaseModel):
     currency: Annotated[Currency, Field(default=Currency.COP)]
     amount: Annotated[
         Decimal,
-        PlainSerializer(lambda x: float(x), return_type=float, when_used="json"),
+        PlainSerializer(lambda x: str(x), return_type=str, when_used="json"),
         Field(description="The total monetary value."),
     ]
 
-    @field_validator("amount", mode="before")
+    @field_validator("amount", mode="after")
     @classmethod
     def amount_must_be_positive(cls, v: Decimal) -> Decimal:
         if v < 0:
