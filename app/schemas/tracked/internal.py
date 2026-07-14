@@ -13,7 +13,10 @@ class TrackedProductInternal(TrackedProductBase):
     owner_id: Annotated[uuid.UUID | None, Field(default=None, description="User identifier.")]
 
     tags_id: Annotated[list[uuid.UUID], Field(default_factory=list, description="List of tags ids.")]
-    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, description="Tracked product ID.")]
+    id: Annotated[
+        uuid.UUID,
+        Field(default_factory=uuid.uuid4, description="Tracked product ID."),
+    ]
     current_price: Annotated[Price | None, Field(default=None, description="Current price found.")]
     created_at: Annotated[
         datetime, Field(default_factory=lambda: datetime.now(UTC), description="When tracking started.")

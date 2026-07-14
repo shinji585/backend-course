@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
-from app.db.repositories.base import requires_initialization
 
 logger = get_logger(__name__)
 
@@ -28,14 +27,18 @@ class TrackedProductRepository:
             return False
 
     def _load_data_if_exits(self):
-        if not self.config_path or not self.config_path.exists():
+        if not self.config_path:
             return None
-        try:
-            return json.loads(self.config_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as e:
-            logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
-            self._backup_corrupted()
-            return self._create_default()
+
+        if self.config_path.exists():
+            try:
+                return json.loads(self.config_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as e:
+                logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
+                self._backup_corrupted()
+                return self._create_default()
+
+        return self._create_default()
 
     def _create_default(self) -> dict[str, Any]:
         default = {"tracked_products": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
@@ -65,20 +68,17 @@ class TrackedProductRepository:
             logger.error(f"Failed to save: {e}")
             return False
 
-    @requires_initialization(auto_init=True, default_factory=list)
     def find_all(self) -> list[dict]:
         assert self.data is not None
         return self.data["tracked_products"]
 
-    @requires_initialization(auto_init=True, default_return=None)
     def find_by_id(self, tracked_product_id: uuid.UUID) -> dict | None:
         assert self.data is not None
         return next(
-            (tp for tp in self.data["tracked_products"] if tp["id"] == tracked_product_id),
+            (tp for tp in self.data["tracked_products"] if uuid.UUID(tp["id"]) == tracked_product_id),
             None,
         )
 
-    @requires_initialization(auto_init=True, default_return=False)
     def save(self, tracked_product: dict) -> bool:
         assert self.data is not None
         self.data["tracked_products"].append(tracked_product)
@@ -86,19 +86,17 @@ class TrackedProductRepository:
         self.data["last_updated"] = datetime.now(UTC).isoformat()
         return self._save()
 
-    @requires_initialization(auto_init=True, default_return=False)
     def update(self, tracked_product_id: uuid.UUID, **kwargs) -> bool:
         assert self.data is not None
         tp = self.find_by_id(tracked_product_id)
         if tp is None:
             return False
         tp.update(kwargs)
-        tp["updated_at"] = datetime.now(UTC)
+        tp["updated_at"] = datetime.now(UTC).isoformat()
         self.data["version"] += 1
         self.data["last_updated"] = datetime.now(UTC).isoformat()
         return self._save()
 
-    @requires_initialization(auto_init=True, default_return=False)
     def delete(self, tracked_product_id: uuid.UUID) -> bool:
         assert self.data is not None
         tp = self.find_by_id(tracked_product_id)

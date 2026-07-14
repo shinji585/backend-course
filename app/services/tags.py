@@ -89,5 +89,5 @@ class TagsServices:
     def get_version(self) -> int:
         return self._repo.get_version()
 
-    def get_all_tags(self) -> list[dict]:
+    def get_all_tags(self) -> list[dict] | None:
         return self._repo.find_all()

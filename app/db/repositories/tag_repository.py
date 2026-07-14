@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
-from app.db.repositories.base import requires_initialization
 
 logger = get_logger(__name__)
 
@@ -28,14 +27,17 @@ class TagRepository:
             return False
 
     def _load_data_if_exits(self):
-        if not self.config_path or not self.config_path.exists():
+        if not self.config_path:
             return None
-        try:
-            return json.loads(self.config_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as e:
-            logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
-            self._backup_corrupted()
-            return self._create_default()
+
+        if self.config_path.exists():
+            try:
+                return json.loads(self.config_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as e:
+                logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
+                self._backup_corrupted()
+                return self._create_default()
+        return self._create_default()
 
     def _create_default(self) -> dict[str, Any]:
         default = {"tags": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
@@ -65,22 +67,18 @@ class TagRepository:
             logger.error(f"Failed to save: {e}")
             return False
 
-    @requires_initialization(auto_init=True, default_return=None)
     def find_all(self) -> list[dict] | None:
         assert self.data is not None
         return self.data["tags"]
 
-    @requires_initialization(auto_init=True, default_return=None)
     def find_by_id(self, tag_id: uuid.UUID) -> dict | None:
         assert self.data is not None
         return next((t for t in self.data["tags"] if t["id"] == tag_id), None)
 
-    @requires_initialization(auto_init=True, default_return=None)
     def find_by_name(self, name: str) -> dict | None:
         assert self.data is not None
         return next((t for t in self.data["tags"] if t.get("name") == name), None)
 
-    @requires_initialization(auto_init=True, default_return=False)
     def save(self, tag: dict) -> bool:
         assert self.data is not None
         self.data["tags"].append(tag)
@@ -88,7 +86,6 @@ class TagRepository:
         self.data["last_updated"] = datetime.now(UTC).isoformat()
         return self._save()
 
-    @requires_initialization(auto_init=True, default_return=False)
     def save_many(self, tags: list[dict]) -> bool:
         assert self.data is not None
         self.data["tags"].extend(tags)
@@ -96,7 +93,6 @@ class TagRepository:
         self.data["last_updated"] = datetime.now(UTC).isoformat()
         return self._save()
 
-    @requires_initialization(auto_init=True, default_return=False)
     def update(self, tag_id: uuid.UUID, **kwargs) -> bool:
         assert self.data is not None
         tag = self.find_by_id(tag_id)
@@ -108,7 +104,6 @@ class TagRepository:
         self.data["last_updated"] = datetime.now(UTC).isoformat()
         return self._save()
 
-    @requires_initialization(auto_init=True, default_return=False)
     def delete(self, tag_id: uuid.UUID) -> bool:
         assert self.data is not None
         original_count = len(self.data["tags"])

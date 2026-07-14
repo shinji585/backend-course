@@ -11,7 +11,10 @@ from app.schemas.tracked.base import TrackedProductBase
 
 
 class TrackedProductPublic(TrackedProductBase):
-    id: Annotated[uuid.UUID, Field(description="Tracked product ID.")]
+    id: Annotated[
+        uuid.UUID,
+        Field(description="Tracked product ID."),
+    ]
     current_price: Annotated[Price | None, Field(..., description="Current price found.")]
     created_at: Annotated[
         datetime, Field(default_factory=lambda: datetime.now(UTC), description="When tracking started.")
