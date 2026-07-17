@@ -1,118 +1,173 @@
-import json
+import sqlite3
 import uuid
-from datetime import UTC, datetime
+from logging import Logger
 from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
+from app.schemas.tags import PublicTag
 
-logger = get_logger(__name__)
+logger: Logger = get_logger(__name__)
 
 
 class TagRepository:
-    def __init__(self, config_path: Path | None = None) -> None:
-        self.config_path: Path | None = config_path
-        self.data: dict | None = None
-        if self.config_path:
-            self.data = self._load_data_if_exits()
+    def __init__(self, db_path: Path) -> None:
+        self.db_path: Path = db_path
+        self._init_db()
 
-    def set_config_path(self, config_path: Path) -> bool:
-        self.config_path = config_path
+    def _init_db(self) -> None:
         try:
-            self.data = self._load_data_if_exits()
-            logger.info(f"Config path set to: {self.config_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to set config path: {e}")
-            return False
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute("""
+                      CREATE TABLE IF NOT EXISTS tags (
+                         id         UUID PRIMARY KEY,
+                         owner_id   UUID,
+                         name       TEXT NOT NULL,
+                         created_at TEXT NOT NULL,
+                        FOREIGN KEY (owner_id) REFERENCES users (id)
+                    );
+               """)
+        except sqlite3.OperationalError as e:
+            logger.critical(f"Failed to initialize the tags table: {e}")
 
-    def _load_data_if_exits(self):
-        if not self.config_path:
+    def save(self, tag: dict) -> None | bool:
+        sql = """
+            INSERT INTO tags (
+                id, owner_id, name, created_at
+            ) VALUES (
+                :id, :owner_id, :name, :created_at
+            );
+        """
+
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql, tag)
+
+                return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to save tag due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while saving tag: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while saving tag: {e}")
             return None
 
-        if self.config_path.exists():
-            try:
-                return json.loads(self.config_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
-                self._backup_corrupted()
-                return self._create_default()
-        return self._create_default()
+    def find_by_id(self, tag_id: uuid.UUID) -> PublicTag | None:
+        sql = """
+           SELECT * FROM tags WHERE id = :id
+        """
 
-    def _create_default(self) -> dict[str, Any]:
-        default = {"tags": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
-        self._save(default)
-        return default
-
-    def _backup_corrupted(self) -> None:
         try:
-            timestap = datetime.now().strftime("Y%m%d_%H%M%S")
-            backup_path = self.config_path.parent / f"{self.config_path.name}.{timestap}.corrupt"  # type: ignore
-            self.config_path.rename(backup_path)  # type: ignore
-            logger.info(f"Corrupted file backed up: {backup_path}")
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql, (tag_id,))
+                row: Any = cursor.fetchone()
+
+                return PublicTag.model_validate(dict(row))
+
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Database integrity error while finding tag by id: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while finding tag by id: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to backup: {e}")
+            logger.error(f"Unexpected error while finding tag by id: {e}")
+            return None
 
-    def _save(self, data: dict | None = None) -> bool:
-        if not self.config_path:
-            logger.error("config_path not set")
-            return False
-        if data is None:
-            data = self.data
+    def find_all(self) -> list[PublicTag] | None:
+        sql = """
+           SELECT * FROM tags;
+        """
+
         try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql)
+                rows: Any = cursor.fetchall()
+
+                return [PublicTag.model_validate(dict(row)) for row in rows]
+
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while finding all tags: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error while finding all tags: {e}")
+            return []
+
+    def save_many(self, tags: list[dict]) -> None | bool:
+        sql = """
+            INSERT INTO tags (
+                id, owner_id, name, created_at
+            ) VALUES (
+                :id, :owner_id, :name, :created_at
+            );
+        """
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+
+                for tag in tags:
+                    cursor.execute(sql, tag)
+
+                return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to save tags due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while saving tags: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while saving tags: {e}")
+            return None
+
+    def update(self, tag_id: uuid.UUID, data: dict) -> None | bool:
+
+        if not data:
+            return None
+
+        set_clause: str = ", ".join(f"{field} = :{field}" for field in data)
+        params: dict[Any, Any] = {**data, "tag_id": tag_id}
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(f"UPDATE books SET {set_clause} WHERE id = :tag_id", params)
+
+                if cursor.rowcount == 0:
+                    return None
+
             return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to update tag due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while updating tag: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to save: {e}")
-            return False
+            logger.error(f"Unexpected error while updating tag: {e}")
+            return None
 
-    def find_all(self) -> list[dict] | None:
-        assert self.data is not None
-        return self.data["tags"]
-
-    def find_by_id(self, tag_id: uuid.UUID) -> dict | None:
-        assert self.data is not None
-        return next((t for t in self.data["tags"] if t["id"] == tag_id), None)
-
-    def find_by_name(self, name: str) -> dict | None:
-        assert self.data is not None
-        return next((t for t in self.data["tags"] if t.get("name") == name), None)
-
-    def save(self, tag: dict) -> bool:
-        assert self.data is not None
-        self.data["tags"].append(tag)
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def save_many(self, tags: list[dict]) -> bool:
-        assert self.data is not None
-        self.data["tags"].extend(tags)
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def update(self, tag_id: uuid.UUID, **kwargs) -> bool:
-        assert self.data is not None
-        tag = self.find_by_id(tag_id)
-        if tag is None:
-            return False
-        tag.update(kwargs)
-        tag["updated_at"] = datetime.now(UTC)
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def delete(self, tag_id: uuid.UUID) -> bool:
-        assert self.data is not None
-        original_count = len(self.data["tags"])
-        self.data["tags"] = [t for t in self.data["tags"] if t["id"] != tag_id]
-        if len(self.data["tags"]) == original_count:
-            return False
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def get_version(self) -> int:
-        return self.data.get("version", 1) if self.data else 1
+    def delete(self, tag_id: uuid.UUID) -> None | bool:
+        sql = """
+        DELETE FROM tags WHERE id = :tag_id
+        """
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql, (tag_id,))
+            return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to delete tag due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while deleting tag: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while deleting tag: {e}")
+            return None

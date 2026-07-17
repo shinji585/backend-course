@@ -1,106 +1,71 @@
-import json
-import uuid
-from datetime import UTC, datetime
+import sqlite3
+from logging import Logger
 from pathlib import Path
-from typing import Any
 
 from app.core.logging import get_logger
+from app.schemas.tracked.public import TrackedProductPublic
 
-logger = get_logger(__name__)
+logger: Logger = get_logger(__name__)
 
 
 class TrackedProductRepository:
-    def __init__(self, config_path: Path | None = None) -> None:
-        self.config_path: Path | None = config_path
-        self.data: dict | None = None
-        if self.config_path:
-            self.data = self._load_data_if_exits()
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self._init_db()
 
-    def set_config_path(self, config_path: Path) -> bool:
-        self.config_path = config_path
+    def _init_db(self) -> None:
         try:
-            self.data = self._load_data_if_exits()
-            logger.info(f"Config path set to: {self.config_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to set config path: {e}")
-            return False
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor = connection.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS tracked_products (
+                        id                      UUID PRIMARY KEY,
+                        owner_id                UUID,                             
+                        name                    TEXT NOT NULL,
+                        description             TEXT,                             
+                        quantity                INTEGER NOT NULL DEFAULT 1,
+                        target_price_amount     NUMERIC(12, 2) NOT NULL,
+                        target_price_currency   TEXT NOT NULL,
+                        current_price_amount    NUMERIC(12, 2),                   
+                        current_price_currency  TEXT,                              
+                        status                  TEXT NOT NULL DEFAULT 'tracking'
+                                                    CHECK (status IN ('tracking', 'paused', 'purchased', 'cancelled')),
+                        created_at              TEXT NOT NULL,
+                        updated_at              TEXT,                              
+                        FOREIGN KEY (owner_id) REFERENCES users (id)
+                    );
+                """)
+        except sqlite3.OperationalError as e:
+            logger.critical(f"Failed to initialize database: {e}")
 
-    def _load_data_if_exits(self):
-        if not self.config_path:
+    def create(self, data: dict) -> TrackedProductPublic | None:
+        sql = """
+            INSERT INTO tracked_products (
+                id, owner_id, name, description, quantity, 
+                target_price_amount, target_price_currency, 
+                current_price_amount, current_price_currency, 
+                status, created_at, updated_at
+            ) VALUES (
+                :id, :owner_id, :name, :description, :quantity, 
+                :target_price_amount, :target_price_currency, 
+                :current_price_amount, :current_price_currency, 
+                :status, :created_at, :updated_at
+            );
+        """
+
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor = connection.cursor()
+
+                cursor.execute(sql, data)
+
+                return TrackedProductPublic.model_validate(data)
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Database integrity violatin (e.g., duplicate ID or foreign key fail): {e}")
             return None
-
-        if self.config_path.exists():
-            try:
-                return json.loads(self.config_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
-                self._backup_corrupted()
-                return self._create_default()
-
-        return self._create_default()
-
-    def _create_default(self) -> dict[str, Any]:
-        default = {"tracked_products": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
-        self._save(default)
-        return default
-
-    def _backup_corrupted(self) -> None:
-        try:
-            timestap = datetime.now().strftime("Y%m%d_%H%M%S")
-            backup_path = self.config_path.parent / f"{self.config_path.name}.{timestap}.corrupt"  # type: ignore
-            self.config_path.rename(backup_path)  # type: ignore
-            logger.info(f"Corrupted file backed up: {backup_path}")
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error during insertion: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to backup: {e}")
-
-    def _save(self, data: dict | None = None) -> bool:
-        if not self.config_path:
-            logger.error("config_path not set")
-            return False
-        if data is None:
-            data = self.data
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save: {e}")
-            return False
-
-    def find_all(self) -> list[dict]:
-        assert self.data is not None
-        return self.data["tracked_products"]
-
-    def find_by_id(self, tracked_product_id: uuid.UUID) -> dict | None:
-        assert self.data is not None
-        return next(
-            (tp for tp in self.data["tracked_products"] if uuid.UUID(tp["id"]) == tracked_product_id),
-            None,
-        )
-
-    def save(self, tracked_product: dict) -> bool:
-        assert self.data is not None
-        self.data["tracked_products"].append(tracked_product)
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def update(self, tracked_product_id: uuid.UUID, **kwargs) -> bool:
-        assert self.data is not None
-        tp = self.find_by_id(tracked_product_id)
-        if tp is None:
-            return False
-        tp.update(kwargs)
-        tp["updated_at"] = datetime.now(UTC).isoformat()
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def delete(self, tracked_product_id: uuid.UUID) -> bool:
-        assert self.data is not None
-        tp = self.find_by_id(tracked_product_id)
-        if tp is None:
-            return False
-        self.data["tracked_products"].remove(tp)
-        return self._save()
+            logger.error(f"An unexpected error occurred during insertion: {e}")
+            return None
