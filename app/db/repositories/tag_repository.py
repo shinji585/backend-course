@@ -58,17 +58,17 @@ class TagRepository:
 
     def find_by_id(self, tag_id: uuid.UUID) -> PublicTag | None:
         sql = """
-           SELECT * FROM tags WHERE id = :id
+           SELECT * FROM tags WHERE id = :tag_id
         """
 
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
                 cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, (tag_id,))
+                cursor.execute(sql, {"tag_id": tag_id})
                 row: Any = cursor.fetchone()
 
-                return PublicTag.model_validate(dict(row))
+                return PublicTag.model_validate(dict(row)) if row else None
 
         except sqlite3.IntegrityError as e:
             logger.error(f"Database integrity error while finding tag by id: {e}")
@@ -80,7 +80,27 @@ class TagRepository:
             logger.error(f"Unexpected error while finding tag by id: {e}")
             return None
 
-    def find_all(self) -> list[PublicTag] | None:
+    def find_by_name(self, name: str) -> PublicTag | None:
+        sql = """
+         SELECT * FROM tags WHERE name = :name
+        """
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql, {"name": name})
+                row: Any = cursor.fetchone()
+
+                return PublicTag.model_validate(dict(row)) if row else None
+
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while finding tag by name: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while finding tag by name: {e}")
+            return None
+
+    def find_all(self) -> list[PublicTag] | list[Any]:
         sql = """
            SELECT * FROM tags;
         """
@@ -137,7 +157,7 @@ class TagRepository:
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(f"UPDATE books SET {set_clause} WHERE id = :tag_id", params)
+                cursor.execute(f"UPDATE tags SET {set_clause} WHERE id = :tag_id", params)
 
                 if cursor.rowcount == 0:
                     return None
@@ -160,8 +180,8 @@ class TagRepository:
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, (tag_id,))
-            return True
+                cursor.execute(sql, {"tag_id": tag_id})
+                return cursor.rowcount > 0
         except sqlite3.IntegrityError as e:
             logger.error(f"Failed to delete tag due to database integrity constraint: {e}")
             return None
