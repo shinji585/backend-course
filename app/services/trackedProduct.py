@@ -1,6 +1,7 @@
 import uuid
+from logging import Logger
 from pathlib import Path
-from typing import Literal
+from typing import Any
 
 from app.core.logging import get_logger
 from app.db.repositories.tracked_product_repository import TrackedProductRepository
@@ -8,57 +9,56 @@ from app.schemas.tags.public import PublicTag
 from app.schemas.tracked import TrackedProductCreate, TrackedProductInternal, TrackedProductPublic
 from app.services.tags import TagsServices
 
-logger = get_logger(__name__)
+logger: Logger = get_logger(__name__)
 
 
 class TrackedProductServices:
-    TAG_SERVICES = TagsServices(config_path=Path(__file__).absolute().parents[1] / "db" / "data" / "tagsData.json")
+    def __init__(self, db_path: Path, tags_db_path: Path) -> None:
+        self._repo = TrackedProductRepository(db_path)
+        self._tag_services = TagsServices(tags_db_path)
 
-    def __init__(self, config_path: Path | None = None) -> None:
-        self._repo = TrackedProductRepository(config_path)
+    def _flatten(self, internal: TrackedProductInternal) -> dict[str, Any]:
+        data: dict[str, Any] = internal.model_dump(exclude={"target_price", "current_price"})
+        data["target_price_amount"] = internal.target_price.amount if internal.target_price else None
+        data["target_price_currency"] = internal.target_price.currency if internal.target_price else None
+        data["current_price_amount"] = internal.current_price.amount if internal.current_price else None
+        data["current_price_currency"] = internal.current_price.currency if internal.current_price else None
+        return data
 
-    def set_config_path(self, config_path: Path) -> bool:
-        return self._repo.set_config_path(config_path)
+    def _to_public(self, data: dict) -> TrackedProductPublic:
+        tags_id: Any = data.pop("tags_id", [])
+        data.pop("owner_id", None)
+        tags: list[PublicTag] = [tag for tag_id in tags_id if (tag := self._tag_services.get_tag(tag_id)) is not None]
+        return TrackedProductPublic.model_validate({**data, "tags": tags})
 
-    # in this method None means that the tracked product couldn't be added
-    # literal[False] means that something internally went wrong
-    def create(self, tracked_product: TrackedProductCreate) -> TrackedProductPublic | None | Literal[False]:
+    def create(self, tracked_product: TrackedProductCreate) -> TrackedProductPublic | None:
         try:
             names: list[str] | None = (
                 [name.strip().lower() for name in tracked_product.tags_name] if tracked_product.tags_name else None
             )
 
-            result: PublicTag | list[PublicTag] | Literal[False] = self.TAG_SERVICES.add_tag(tags=names)
-
-            if result is False:
+            result: PublicTag | list[PublicTag] | None = self._tag_services.add_tag(name=names)
+            if result is None:
                 return None
 
-            if isinstance(result, list):
-                ids = [tag.id for tag in result]
-                data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude={"tags_name"}))
-                data.tags_id = ids
+            tags: list[PublicTag] = result if isinstance(result, list) else [result]
 
-                if self._repo.save(data.model_dump(mode="json")):
-                    logger.info(f"Tracked Product added: {data.name}")
-                    pyload = {**data.model_dump(exclude={"tags_id", "owner_id"}), "tags": result}
-                    return TrackedProductPublic.model_validate(pyload)
+            internal: TrackedProductInternal = TrackedProductInternal.model_validate(
+                tracked_product.model_dump(exclude={"tags_name"})
+            )
+            internal.tags_id = [tag.id for tag in tags]
+
+            flat: dict[str, Any] = self._flatten(internal)
+
+            if not self._repo.save(flat):
                 return None
 
-            if isinstance(result, PublicTag):
-                data = TrackedProductInternal.model_validate(tracked_product.model_dump(exclude={"tags_name"}))
-                data.tags_id.append(result.id)
-
-                if self._repo.save(data.model_dump(mode="json")):
-                    logger.info(f"Tracked Product added: {data.name}")
-                    pyload = {**data.model_dump(exclude={"tags_id", "owner_id"}), "tags": [result]}
-                    return TrackedProductPublic.model_validate(pyload)
-                return None
-
-            return None
+            logger.info(f"Tracked Product added: {internal.name}")
+            return self._to_public(flat | {"tags_id": internal.tags_id})
 
         except Exception as e:
             logger.error(f"Failed to create tracked product: {e}")
-            return False
+            return None
 
     def remove(self, tracked_product_id: uuid.UUID) -> bool:
         if self._repo.delete(tracked_product_id):
@@ -66,9 +66,19 @@ class TrackedProductServices:
             return True
         return False
 
-    def update(self, tracked_product_id: uuid.UUID, **kwargs) -> bool:
+    def update(self, tracked_product_id: uuid.UUID, data: dict) -> bool:
         try:
-            if self._repo.update(tracked_product_id, **kwargs):
+            flat_data: dict[str, Any] = {k: v for k, v in data.items() if k not in {"target_price", "current_price"}}
+
+            if "target_price" in data and data["target_price"] is not None:
+                flat_data["target_price_amount"] = data["target_price"]["amount"]
+                flat_data["target_price_currency"] = data["target_price"]["currency"]
+
+            if "current_price" in data and data["current_price"] is not None:
+                flat_data["current_price_amount"] = data["current_price"]["amount"]
+                flat_data["current_price_currency"] = data["current_price"]["currency"]
+
+            if self._repo.update(tracked_product_id, flat_data):
                 logger.info(f"Tracked product updated: {tracked_product_id}")
                 return True
             logger.warning(f"Tracked product not found: {tracked_product_id}")
@@ -78,26 +88,11 @@ class TrackedProductServices:
             return False
 
     def get(self, tracked_product_id: uuid.UUID) -> TrackedProductPublic | None:
-        tracked_data = self._repo.find_by_id(tracked_product_id)
+        tracked_data: None | dict[Any, Any] = self._repo.find_by_id(tracked_product_id)
         if tracked_data is None:
             return None
-
-        return TrackedProductPublic.model_validate(
-            {k: v for k, v in tracked_data.items() if k not in {"tags_id", "owner_id"}}
-            | {"tags": [self.TAG_SERVICES.get_tag(tag_id=tag_id) for tag_id in tracked_data["tags_id"]]}
-        )
+        return self._to_public(tracked_data)
 
     def get_all(self, limit: int, offset: int) -> list[TrackedProductPublic]:
-        return [
-            TrackedProductPublic.model_validate(
-                {k: v for k, v in product.items() if k not in {"tags_id", "owner_id"}}
-                | {
-                    "tags": [
-                        tag
-                        for tag_id in product["tags_id"]
-                        if (tag := self.TAG_SERVICES.get_tag(tag_id=tag_id)) is not None
-                    ]
-                }
-            )
-            for product in self._repo.find_all()[offset : offset + limit]
-        ]
+        products: list[dict[str, Any]] = self._repo.find_all()
+        return [self._to_public(p) for p in products[offset : offset + limit]]

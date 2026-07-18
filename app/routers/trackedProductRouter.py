@@ -1,12 +1,10 @@
 import uuid
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.deps import get_tracked_product_services
-from app.schemas.tracked.create import TrackedProductCreate
-from app.schemas.tracked.public import TrackedProductPublic
-from app.schemas.tracked.update import TrackedProductUpdate
+from app.schemas.tracked import TrackedProductCreate, TrackedProductPublic, TrackedProductUpdate
 from app.services.trackedProduct import TrackedProductServices
 
 router = APIRouter(prefix="/trackedProducts", tags=["trackedProducts"])
@@ -30,10 +28,8 @@ router = APIRouter(prefix="/trackedProducts", tags=["trackedProducts"])
 def create(
     payload: TrackedProductCreate, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
 ) -> TrackedProductPublic:
-    result: TrackedProductPublic | None | Literal[False] = service.create(tracked_product=payload)
+    result: TrackedProductPublic | None = service.create(tracked_product=payload)
 
-    if result is False:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error")
     if result is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create tracked product")
 
@@ -105,9 +101,7 @@ def update(
     payload: TrackedProductUpdate,
     service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> dict[str, Any]:
-    result: bool = service.update(
-        tracked_product_id=tracked_product_id, **payload.model_dump(exclude_unset=True, mode="json")
-    )
+    result: bool = service.update(tracked_product_id=tracked_product_id, data=payload.model_dump(exclude_unset=True))
 
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")

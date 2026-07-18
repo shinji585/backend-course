@@ -1,106 +1,219 @@
-import json
+import sqlite3
 import uuid
-from datetime import UTC, datetime
+from logging import Logger
 from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
 
-logger = get_logger(__name__)
+logger: Logger = get_logger(__name__)
+
+
+ALLOWED_UPDATE_FIELDS: set[str] = {
+    "name",
+    "description",
+    "quantity",
+    "target_price_amount",
+    "target_price_currency",
+    "current_price_amount",
+    "current_price_currency",
+    "status",
+    "updated_at",
+}
 
 
 class TrackedProductRepository:
-    def __init__(self, config_path: Path | None = None) -> None:
-        self.config_path: Path | None = config_path
-        self.data: dict | None = None
-        if self.config_path:
-            self.data = self._load_data_if_exits()
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self._init_db()
 
-    def set_config_path(self, config_path: Path) -> bool:
-        self.config_path = config_path
+    def _init_db(self) -> None:
         try:
-            self.data = self._load_data_if_exits()
-            logger.info(f"Config path set to: {self.config_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to set config path: {e}")
-            return False
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS tracked_products (
+                        id                      UUID PRIMARY KEY,
+                        owner_id                UUID,                             
+                        name                    TEXT NOT NULL,
+                        description             TEXT,                             
+                        quantity                INTEGER NOT NULL DEFAULT 1,
+                        target_price_amount     NUMERIC(12, 2) NOT NULL,
+                        target_price_currency   TEXT NOT NULL,
+                        current_price_amount    NUMERIC(12, 2),                   
+                        current_price_currency  TEXT,                              
+                        status                  TEXT NOT NULL DEFAULT 'tracking'
+                                                    CHECK (status IN ('tracking', 'paused', 'purchased', 'cancelled')),
+                        created_at              TEXT NOT NULL,
+                        updated_at              TEXT,                              
+                        FOREIGN KEY (owner_id) REFERENCES users (id)
+                    );
+                """)
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tracked_product_tags (
+                    tracked_product_id UUID NOT NULL,
+                    tag_id             UUID NOT NULL,
+                    PRIMARY KEY (tracked_product_id, tag_id),
+                    FOREIGN KEY (tracked_product_id) REFERENCES tracked_products (id),
+                    FOREIGN KEY (tag_id) REFERENCES tags (id)
+                );
+            """)
+        except sqlite3.OperationalError as e:
+            logger.critical(f"Failed to initialize database: {e}")
 
-    def _load_data_if_exits(self):
-        if not self.config_path:
+    def save(self, data: dict) -> None | dict[Any, Any]:
+        product_sql = """
+            INSERT INTO tracked_products (
+                id, owner_id, name, description, quantity, 
+                target_price_amount, target_price_currency, 
+                current_price_amount, current_price_currency, 
+                status, created_at, updated_at
+            ) VALUES (
+                :id, :owner_id, :name, :description, :quantity, 
+                :target_price_amount, :target_price_currency, 
+                :current_price_amount, :current_price_currency, 
+                :status, :created_at, :updated_at
+            );
+        """
+        tag_link_sql = """
+        INSERT INTO tracked_product_tags (tracked_product_id, tag_id)
+        VALUES (:tracked_product_id, :tag_id);
+        """
+
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(product_sql, data)
+
+                for tag_id in data.get("tags_id", []):
+                    cursor.execute(tag_link_sql, {"tracked_product_id": data["id"], "tag_id": tag_id})
+
+                return self.find_by_id(data["id"])
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to save tracked product due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while saving tracked product: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while saving tracked product: {e}")
             return None
 
-        if self.config_path.exists():
-            try:
-                return json.loads(self.config_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                logger.warning(f"Corruption at line {e.lineno}, col {e.colno}")
-                self._backup_corrupted()
-                return self._create_default()
+    def find_all(self) -> list[dict[str, Any]]:
+        sql = """
+            SELECT tp.*, tpt.tag_id
+            FROM tracked_products tp
+            LEFT JOIN tracked_product_tags tpt ON tpt.tracked_product_id = tp.id
+        """
 
-        return self._create_default()
-
-    def _create_default(self) -> dict[str, Any]:
-        default = {"tracked_products": [], "last_updated": datetime.now(UTC).isoformat(), "version": 1}
-        self._save(default)
-        return default
-
-    def _backup_corrupted(self) -> None:
         try:
-            timestap = datetime.now().strftime("Y%m%d_%H%M%S")
-            backup_path = self.config_path.parent / f"{self.config_path.name}.{timestap}.corrupt"  # type: ignore
-            self.config_path.rename(backup_path)  # type: ignore
-            logger.info(f"Corrupted file backed up: {backup_path}")
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql)
+                rows: list[Any] = cursor.fetchall()
+
+                products = {}
+                for row in rows:
+                    row_dict: dict[Any, Any] = dict(row)
+                    product_id = row_dict["id"]
+                    tag_id = row_dict.pop("tag_id")
+
+                    if product_id not in products:
+                        products[product_id] = {**row_dict, "tags_id": []}
+                    if tag_id is not None:
+                        products[product_id]["tags_id"].append(tag_id)
+
+                return list(products.values())
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while finding all tracked products: {e}")
+            return []
         except Exception as e:
-            logger.error(f"Failed to backup: {e}")
+            logger.error(f"Unexpected error while finding all tracked products: {e}")
+            return []
 
-    def _save(self, data: dict | None = None) -> bool:
-        if not self.config_path:
-            logger.error("config_path not set")
-            return False
-        if data is None:
-            data = self.data
+    def find_by_id(self, tracked_product_id: uuid.UUID) -> None | dict[Any, Any]:
+        sql = """
+            SELECT tp.*, tpt.tag_id
+            FROM tracked_products tp
+            LEFT JOIN tracked_product_tags tpt ON tpt.tracked_product_id = tp.id
+            WHERE tp.id = :id
+        """
+
         try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(sql, {"id": tracked_product_id})
+                rows: Any = cursor.fetchall()
+
+                if not rows:
+                    return None
+
+                product: dict[Any, Any] = dict(rows[0])
+                tag_id = product.pop("tag_id")
+                product["tags_id"] = [tag_id] if tag_id else []
+
+                for row in rows[1:]:
+                    if row["tag_id"] is not None:
+                        product["tags_id"].append(row["tag_id"])
+
+                return product
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Database integrity error while finding tracked product by id: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while finding tracked product by id: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while finding tracked product by id: {e}")
+            return None
+
+    def update(self, tracked_product_id: uuid.UUID, data: dict) -> None | bool:
+
+        if not data:
+            return None
+
+        # keep only allowed fields
+        safe_data = {k: v for k, v in data.items() if k in ALLOWED_UPDATE_FIELDS}
+        if not safe_data:
+            return None
+
+        set_clause: str = ", ".join(f"{field} = :{field}" for field in safe_data)
+        params: dict[Any, Any] = {**safe_data, "tracked_product_id": tracked_product_id}
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor: sqlite3.Cursor = connection.cursor()
+                cursor.execute(f"UPDATE tracked_products SET {set_clause} WHERE id = :tracked_product_id", params)
+
+                if cursor.rowcount == 0:
+                    return None
             return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to update tracked product due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while updating tracked product: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to save: {e}")
-            return False
+            logger.error(f"Unexpected error while updating tracked product: {e}")
+            return None
 
-    def find_all(self) -> list[dict]:
-        assert self.data is not None
-        return self.data["tracked_products"]
-
-    def find_by_id(self, tracked_product_id: uuid.UUID) -> dict | None:
-        assert self.data is not None
-        return next(
-            (tp for tp in self.data["tracked_products"] if uuid.UUID(tp["id"]) == tracked_product_id),
-            None,
-        )
-
-    def save(self, tracked_product: dict) -> bool:
-        assert self.data is not None
-        self.data["tracked_products"].append(tracked_product)
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def update(self, tracked_product_id: uuid.UUID, **kwargs) -> bool:
-        assert self.data is not None
-        tp = self.find_by_id(tracked_product_id)
-        if tp is None:
-            return False
-        tp.update(kwargs)
-        tp["updated_at"] = datetime.now(UTC).isoformat()
-        self.data["version"] += 1
-        self.data["last_updated"] = datetime.now(UTC).isoformat()
-        return self._save()
-
-    def delete(self, tracked_product_id: uuid.UUID) -> bool:
-        assert self.data is not None
-        tp = self.find_by_id(tracked_product_id)
-        if tp is None:
-            return False
-        self.data["tracked_products"].remove(tp)
-        return self._save()
+    def delete(self, tracked_product_id: uuid.UUID) -> None | bool:
+        sql = """
+        DELETE FROM tracked_products WHERE id = :tracked_product_id
+        """
+        try:
+            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
+                cursor = connection.cursor()
+                cursor.execute(sql, {"tracked_product_id": tracked_product_id})
+            return True
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Failed to delete tracked product due to database integrity constraint: {e}")
+            return None
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operational error while deleting tracked product: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while deleting tracked product: {e}")
+            return None
