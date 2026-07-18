@@ -9,6 +9,19 @@ from app.core.logging import get_logger
 logger: Logger = get_logger(__name__)
 
 
+ALLOWED_UPDATE_FIELDS: set[str] = {
+    "name",
+    "description",
+    "quantity",
+    "target_price_amount",
+    "target_price_currency",
+    "current_price_amount",
+    "current_price_currency",
+    "status",
+    "updated_at",
+}
+
+
 class TrackedProductRepository:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -102,7 +115,7 @@ class TrackedProductRepository:
 
                 products = {}
                 for row in rows:
-                    row_dict = dict(row)
+                    row_dict: dict[Any, Any] = dict(row)
                     product_id = row_dict["id"]
                     tag_id = row_dict.pop("tag_id")
 
@@ -137,7 +150,7 @@ class TrackedProductRepository:
                 if not rows:
                     return None
 
-                product = dict(rows[0])
+                product: dict[Any, Any] = dict(rows[0])
                 tag_id = product.pop("tag_id")
                 product["tags_id"] = [tag_id] if tag_id else []
 
@@ -161,8 +174,13 @@ class TrackedProductRepository:
         if not data:
             return None
 
-        set_clause: str = ", ".join(f"{field} = :{field}" for field in data)
-        params: dict[Any, Any] = {**data, "tracked_product_id": tracked_product_id}
+        # keep only allowed fields
+        safe_data = {k: v for k, v in data.items() if k in ALLOWED_UPDATE_FIELDS}
+        if not safe_data:
+            return None
+
+        set_clause: str = ", ".join(f"{field} = :{field}" for field in safe_data)
+        params: dict[Any, Any] = {**safe_data, "tracked_product_id": tracked_product_id}
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 cursor: sqlite3.Cursor = connection.cursor()
@@ -188,7 +206,7 @@ class TrackedProductRepository:
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 cursor = connection.cursor()
-                cursor.execute(sql, (tracked_product_id,))
+                cursor.execute(sql, {"tracked_product_id": tracked_product_id})
             return True
         except sqlite3.IntegrityError as e:
             logger.error(f"Failed to delete tracked product due to database integrity constraint: {e}")

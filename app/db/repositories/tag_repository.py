@@ -9,6 +9,8 @@ from app.schemas.tags import PublicTag
 
 logger: Logger = get_logger(__name__)
 
+ALLOWED_UPDATED_FIELDS: set[str] = {"name", "owner_id"}
+
 
 class TagRepository:
     def __init__(self, db_path: Path) -> None:
@@ -152,8 +154,13 @@ class TagRepository:
         if not data:
             return None
 
-        set_clause: str = ", ".join(f"{field} = :{field}" for field in data)
-        params: dict[Any, Any] = {**data, "tag_id": tag_id}
+        safe_data = {k: v for k, v in data.items() if k in ALLOWED_UPDATED_FIELDS}
+
+        if not safe_data:
+            return None
+
+        set_clause: str = ", ".join(f"{field} = :{field}" for field in safe_data)
+        params: dict[Any, Any] = {**safe_data, "tag_id": tag_id}
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
                 cursor: sqlite3.Cursor = connection.cursor()
