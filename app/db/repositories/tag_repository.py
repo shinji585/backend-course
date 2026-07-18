@@ -11,6 +11,9 @@ logger: Logger = get_logger(__name__)
 
 ALLOWED_UPDATED_FIELDS: set[str] = {"name", "owner_id"}
 
+sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
+sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8")))
+
 
 class TagRepository:
     def __init__(self, db_path: Path) -> None:
@@ -60,7 +63,7 @@ class TagRepository:
 
     def find_by_id(self, tag_id: uuid.UUID) -> PublicTag | None:
         sql = """
-           SELECT * FROM tags WHERE id = :tag_id
+           SELECT id, name FROM tags WHERE id = :tag_id
         """
 
         try:
@@ -70,7 +73,10 @@ class TagRepository:
                 cursor.execute(sql, {"tag_id": tag_id})
                 row: Any = cursor.fetchone()
 
-                return PublicTag.model_validate(dict(row)) if row else None
+                if row is None:
+                    return None
+
+                return PublicTag.model_validate(dict(row))
 
         except sqlite3.IntegrityError as e:
             logger.error(f"Database integrity error while finding tag by id: {e}")
@@ -84,7 +90,7 @@ class TagRepository:
 
     def find_by_name(self, name: str) -> PublicTag | None:
         sql = """
-         SELECT * FROM tags WHERE name = :name
+         SELECT id, name FROM tags WHERE name = :name
         """
         try:
             with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
@@ -93,7 +99,10 @@ class TagRepository:
                 cursor.execute(sql, {"name": name})
                 row: Any = cursor.fetchone()
 
-                return PublicTag.model_validate(dict(row)) if row else None
+                if row is None:
+                    return None
+
+                return PublicTag.model_validate(dict(row))
 
         except sqlite3.OperationalError as e:
             logger.error(f"Database operational error while finding tag by name: {e}")
@@ -102,9 +111,9 @@ class TagRepository:
             logger.error(f"Unexpected error while finding tag by name: {e}")
             return None
 
-    def find_all(self) -> list[PublicTag] | list[Any]:
+    def find_all(self) -> list[PublicTag]:
         sql = """
-           SELECT * FROM tags;
+           SELECT id, name FROM tags;
         """
 
         try:

@@ -27,7 +27,8 @@ class TagsServices:
                     return None
 
                 logger.info(f"Tag added: {data['name']}")
-                return PublicTag.model_validate(data)
+                public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
+                return PublicTag.model_validate(public_data)
 
             if isinstance(name, list):
                 public_results: list[PublicTag] = []
@@ -42,7 +43,8 @@ class TagsServices:
                     new_tag = InternalTag(name=n)
                     data = new_tag.model_dump()
                     newly_created.append(data)
-                    public_results.append(PublicTag.model_validate(data))
+                    public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
+                    public_results.append(PublicTag.model_validate(public_data))
 
                 if newly_created:
                     if not self._repo.save_many(newly_created):
@@ -61,7 +63,8 @@ class TagsServices:
                 return None
 
             logger.info(f"Tag added: {name}")
-            return PublicTag.model_validate(data)
+            public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
+            return PublicTag.model_validate(public_data)
 
         except Exception as e:
             logger.error(f"Failed to add tag: {e}")
