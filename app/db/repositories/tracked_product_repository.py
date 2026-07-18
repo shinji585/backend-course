@@ -1,5 +1,6 @@
 import sqlite3
 import uuid
+from decimal import Decimal
 from logging import Logger
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,9 @@ from app.core.logging import get_logger
 
 logger: Logger = get_logger(__name__)
 
+sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
+sqlite3.register_adapter(Decimal, float)
+sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8")))
 
 ALLOWED_UPDATE_FIELDS: set[str] = {
     "name",
@@ -24,7 +28,7 @@ ALLOWED_UPDATE_FIELDS: set[str] = {
 
 class TrackedProductRepository:
     def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
+        self.db_path: Path = db_path
         self._init_db()
 
     def _init_db(self) -> None:
@@ -88,7 +92,7 @@ class TrackedProductRepository:
                 for tag_id in data.get("tags_id", []):
                     cursor.execute(tag_link_sql, {"tracked_product_id": data["id"], "tag_id": tag_id})
 
-                return self.find_by_id(data["id"])
+            return self.find_by_id(data["id"])
         except sqlite3.IntegrityError as e:
             logger.error(f"Failed to save tracked product due to database integrity constraint: {e}")
             return None
@@ -124,7 +128,7 @@ class TrackedProductRepository:
                     if tag_id is not None:
                         products[product_id]["tags_id"].append(tag_id)
 
-                return list(products.values())
+            return list(products.values())
         except sqlite3.OperationalError as e:
             logger.error(f"Database operational error while finding all tracked products: {e}")
             return []
@@ -158,7 +162,7 @@ class TrackedProductRepository:
                     if row["tag_id"] is not None:
                         product["tags_id"].append(row["tag_id"])
 
-                return product
+            return product
         except sqlite3.IntegrityError as e:
             logger.error(f"Database integrity error while finding tracked product by id: {e}")
             return None

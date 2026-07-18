@@ -5,13 +5,31 @@ services:
       dockerfile: Dockerfile
 
     container_name: backend_course_2
+
     ports:
       - "8000:8000"
+
     labels:
       - "portless.primary=true"
       - "portless.domain=api.course.test"
+
     volumes:
       - .:/app
       - /app/.venv
 
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  dbgate:
+    image: dbgate/dbgate:latest
+    container_name: dbgate
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - dbgate_data:/root/.dbgate
+      - ./app/db/data:/mnt/sqlite_files
+
+volumes:
+  dbgate_data:

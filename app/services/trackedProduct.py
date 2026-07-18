@@ -28,8 +28,31 @@ class TrackedProductServices:
     def _to_public(self, data: dict) -> TrackedProductPublic:
         tags_id: Any = data.pop("tags_id", [])
         data.pop("owner_id", None)
-        tags: list[PublicTag] = [tag for tag_id in tags_id if (tag := self._tag_services.get_tag(tag_id)) is not None]
-        return TrackedProductPublic.model_validate({**data, "tags": tags})
+
+        target_amount = data.pop("target_price_amount", None)
+        target_currency = data.pop("target_price_currency", None)
+
+        current_amount = data.pop("current_price_amount", None)
+        current_currency = data.pop("current_price_currency", None)
+
+        data["target_price"] = {"amount": target_amount, "currency": target_currency}
+
+        data["current_price"] = (
+            {
+                "amount": current_amount,
+                "currency": current_currency,
+            }
+            if current_amount is not None and current_currency is not None
+            else None
+        )
+
+        tags: list[PublicTag] = [
+            tag for tag_id in tags_id if (tag := self._tag_services.get_tag(tag_id=tag_id)) is not None
+        ]
+
+        data["tags"] = tags
+
+        return TrackedProductPublic.model_validate(data)
 
     def create(self, tracked_product: TrackedProductCreate) -> TrackedProductPublic | None:
         try:

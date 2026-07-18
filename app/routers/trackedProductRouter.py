@@ -29,6 +29,7 @@ def create(
     payload: TrackedProductCreate, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
 ) -> TrackedProductPublic:
     result: TrackedProductPublic | None = service.create(tracked_product=payload)
+    print(result)
 
     if result is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create tracked product")
