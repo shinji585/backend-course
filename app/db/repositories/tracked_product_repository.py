@@ -10,7 +10,8 @@ from app.core.logging import get_logger
 logger: Logger = get_logger(__name__)
 
 sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
-sqlite3.register_adapter(Decimal, float)
+sqlite3.register_adapter(Decimal, lambda d: str(d))
+sqlite3.register_converter("NUMERIC", lambda b: Decimal(b.decode("utf-8")))
 sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8")))
 
 ALLOWED_UPDATE_FIELDS: set[str] = {
