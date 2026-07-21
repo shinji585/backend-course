@@ -1,98 +1,75 @@
 import uuid
+from collections.abc import Sequence
 from logging import Logger
-from pathlib import Path
-from typing import Any
 
 from app.core.logging import get_logger
 from app.db.repositories.tag_repository import TagRepository
-from app.schemas.tags import InternalTag, PublicTag
+from app.models.tag import Tag
 
 logger: Logger = get_logger(__name__)
 
 
 class TagsServices:
-    def __init__(self, config_path: Path) -> None:
-        self._repo = TagRepository(config_path)
+    def __init__(self, repo: TagRepository) -> None:
+        self._repo: TagRepository = repo
 
-    def add_tag(self, name: str | list[str] | None = None) -> PublicTag | list[PublicTag] | None:
+    def create_tag(self, name: str) -> Tag | None:
         try:
-            if name is None:
-                default_tag = InternalTag()
-                existing = self._repo.find_by_name(default_tag.name)
-                if existing:
-                    return existing
-
-                data: dict[str, Any] = default_tag.model_dump()
-                if not self._repo.save(data):
-                    return None
-
-                logger.info(f"Tag added: {data['name']}")
-                public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
-                return PublicTag.model_validate(public_data)
-
-            if isinstance(name, list):
-                public_results: list[PublicTag] = []
-                newly_created: list[dict] = []
-
-                for n in name:
-                    found: PublicTag | None = self._repo.find_by_name(n)
-                    if found:
-                        public_results.append(found)
-                        continue
-
-                    new_tag = InternalTag(name=n)
-                    data = new_tag.model_dump()
-                    newly_created.append(data)
-                    public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
-                    public_results.append(PublicTag.model_validate(public_data))
-
-                if newly_created:
-                    if not self._repo.save_many(newly_created):
-                        return None
-                    logger.info(f"Tags added: {[t['name'] for t in newly_created]}")
-
-                return public_results
-
-            existing: PublicTag | None = self._repo.find_by_name(name)
+            existing: Tag | None = self._repo.get_by_name(name)
             if existing:
                 return existing
 
-            new_tag = InternalTag(name=name)
-            data = new_tag.model_dump()
-            if not self._repo.save(data):
+            saved: bool | None = self._repo.save({"name": name})
+            if not saved:
                 return None
 
-            logger.info(f"Tag added: {name}")
-            public_data = {k: v for k, v in data.items() if k in PublicTag.model_fields}
-            return PublicTag.model_validate(public_data)
-
+            return self._repo.get_by_name(name)
         except Exception as e:
-            logger.error(f"Failed to add tag: {e}")
+            logger.error(f"Failed to create tag: {e}")
             return None
+
+    def create_tags(self, names: list[str]) -> list[Tag]:
+        try:
+            results: list[Tag] = []
+            to_create: list[dict] = []
+
+            for name in names:
+                existing = self._repo.get_by_name(name)
+                if existing:
+                    results.append(existing)
+                    continue
+                to_create.append({"name": name})
+
+            if to_create:
+                if not self._repo.save_many(to_create):
+                    return results
+
+                for entry in to_create:
+                    created = self._repo.get_by_name(entry["name"])
+                    if created:
+                        results.append(created)
+
+            return results
+        except Exception as e:
+            logger.error(f"Failed to create tags: {e}")
+            return []
 
     def remove_tag(self, tag_id: uuid.UUID) -> bool:
         try:
             if self._repo.delete(tag_id=tag_id):
                 logger.info(f"Tag removed: {tag_id}")
                 return True
+            logger.warning(f"Tag not found: {tag_id}")
             return False
         except Exception as e:
             logger.error(f"Failed to remove tag: {e}")
             return False
 
-    def update_tag(self, tag_id: uuid.UUID, data: dict) -> bool:
-        try:
-            if self._repo.update(tag_id=tag_id, data=data):
-                logger.info(f"Tag updated: {tag_id}")
-                return True
-            logger.warning(f"Tag not found: {tag_id}")
-            return False
-        except Exception as e:
-            logger.error(f"Failed to update tag: {e}")
-            return False
+    def get_tag(self, tag_id: uuid.UUID) -> Tag | None:
+        return self._repo.get_by_id(tag_id=tag_id)
 
-    def get_tag(self, tag_id: uuid.UUID) -> PublicTag | None:
-        return self._repo.find_by_id(tag_id=tag_id)
+    def get_tag_by_name(self, name: str) -> Tag | None:
+        return self._repo.get_by_name(name=name)
 
-    def get_all_tags(self) -> list[PublicTag] | list[Any]:
-        return self._repo.find_all()
+    def list_tags(self, offset: int, limit: int) -> Sequence[Tag]:
+        return self._repo.list_all(offset=offset, limit=limit)

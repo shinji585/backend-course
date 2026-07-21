@@ -1,209 +1,141 @@
-import sqlite3
 import uuid
+from collections.abc import Sequence
 from logging import Logger
-from pathlib import Path
 from typing import Any
 
+from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError, OperationalError, PendingRollbackError, StatementError
+from sqlalchemy.orm import Session
+
 from app.core.logging import get_logger
-from app.schemas.tags import PublicTag
+from app.models.tag import Tag
 
 logger: Logger = get_logger(__name__)
 
-ALLOWED_UPDATED_FIELDS: set[str] = {"name", "owner_id"}
-
-sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
-sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8")))
-
 
 class TagRepository:
-    def __init__(self, db_path: Path) -> None:
-        self.db_path: Path = db_path
-        self._init_db()
+    def __init__(self, session: Session) -> None:
+        self.session: Session = session
 
-    def _init_db(self) -> None:
+    def save(self, tag: dict) -> bool | None:
         try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute("""
-                      CREATE TABLE IF NOT EXISTS tags (
-                         id         UUID PRIMARY KEY,
-                         owner_id   UUID,
-                         name       TEXT NOT NULL,
-                         created_at TEXT NOT NULL,
-                        FOREIGN KEY (owner_id) REFERENCES users (id)
-                    );
-               """)
-        except sqlite3.OperationalError as e:
-            logger.critical(f"Failed to initialize the tags table: {e}")
-
-    def save(self, tag: dict) -> None | bool:
-        sql = """
-            INSERT INTO tags (
-                id, owner_id, name, created_at
-            ) VALUES (
-                :id, :owner_id, :name, :created_at
-            );
-        """
-
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, tag)
-
-                return True
-        except sqlite3.IntegrityError as e:
+            self.session.add(Tag(**tag))
+            self.session.commit()
+            return True
+        except IntegrityError as e:
+            self.session.rollback()
             logger.error(f"Failed to save tag due to database integrity constraint: {e}")
             return None
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database operational error while saving tag: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error while saving tag: {e}")
-            return None
-
-    def find_by_id(self, tag_id: uuid.UUID) -> PublicTag | None:
-        sql = """
-           SELECT id, name FROM tags WHERE id = :tag_id
-        """
-
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, {"tag_id": tag_id})
-                row: Any = cursor.fetchone()
-
-                if row is None:
-                    return None
-
-                return PublicTag.model_validate(dict(row))
-
-        except sqlite3.IntegrityError as e:
-            logger.error(f"Database integrity error while finding tag by id: {e}")
-            return None
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database operational error while finding tag by id: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error while finding tag by id: {e}")
-            return None
-
-    def find_by_name(self, name: str) -> PublicTag | None:
-        sql = """
-         SELECT id, name FROM tags WHERE name = :name
-        """
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, {"name": name})
-                row: Any = cursor.fetchone()
-
-                if row is None:
-                    return None
-
-                return PublicTag.model_validate(dict(row))
-
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database operational error while finding tag by name: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error while finding tag by name: {e}")
-            return None
-
-    def find_all(self) -> list[PublicTag]:
-        sql = """
-           SELECT id, name FROM tags;
-        """
-
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                connection.row_factory = lambda cursor, row: sqlite3.Row(cursor, row)  # type: ignore
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql)
-                rows: Any = cursor.fetchall()
-
-                return [PublicTag.model_validate(dict(row)) for row in rows]
-
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database operational error while finding all tags: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error while finding all tags: {e}")
-            return []
-
-    def save_many(self, tags: list[dict]) -> None | bool:
-        sql = """
-            INSERT INTO tags (
-                id, owner_id, name, created_at
-            ) VALUES (
-                :id, :owner_id, :name, :created_at
-            );
-        """
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                cursor: sqlite3.Cursor = connection.cursor()
-
-                for tag in tags:
-                    cursor.execute(sql, tag)
-
-                return True
-        except sqlite3.IntegrityError as e:
-            logger.error(f"Failed to save tags due to database integrity constraint: {e}")
-            return None
-        except sqlite3.OperationalError as e:
+        except OperationalError as e:
+            self.session.rollback()
             logger.error(f"Database operational error while saving tags: {e}")
             return None
         except Exception as e:
+            self.session.rollback()
+            logger.error(f"Unexpected error while saving tag: {e}")
+            return None
+
+    def save_many(self, tags: list[dict]) -> bool | None:
+        try:
+            self.session.add_all(Tag(**tag) for tag in tags)
+            self.session.commit()
+            return True
+        except IntegrityError as e:
+            self.session.rollback()
+            logger.error(f"Failed to save tags due to database integrity constraint: {e}")
+            return None
+        except OperationalError as e:
+            self.session.rollback()
+            logger.error(f"Database operational error while saving tags: {e}")
+            return None
+        except Exception as e:
+            self.session.rollback()
             logger.error(f"Unexpected error while saving tags: {e}")
             return None
 
-    def update(self, tag_id: uuid.UUID, data: dict) -> None | bool:
-
-        if not data:
-            return None
-
-        safe_data = {k: v for k, v in data.items() if k in ALLOWED_UPDATED_FIELDS}
-
-        if not safe_data:
-            return None
-
-        set_clause: str = ", ".join(f"{field} = :{field}" for field in safe_data)
-        params: dict[Any, Any] = {**safe_data, "tag_id": tag_id}
+    def get_by_id(self, tag_id: uuid.UUID) -> Tag | None:
         try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(f"UPDATE tags SET {set_clause} WHERE id = :tag_id", params)
+            return self.session.get(Tag, tag_id)
+        except PendingRollbackError as e:
+            self.session.rollback()
+            logger.error(f"Session was left in an invalid state, rolled back: {e}")
+            return None
+        except OperationalError as e:
+            self.session.rollback()
+            logger.error(f"Database operational error while getting tag: {e}")
+            return None
+        except StatementError as e:
+            self.session.rollback()
+            logger.error(f"Malformed statement while getting tag: {e}")
+            return None
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"Unexpected error while getting tag: {e}")
+            return None
 
-                if cursor.rowcount == 0:
-                    return None
+    def get_by_name(self, name: str) -> Tag | None:
+        try:
+            return self.session.scalars(select(Tag).where(Tag.name == name)).first()
+        except PendingRollbackError as e:
+            self.session.rollback()
+            logger.error(f"Session was left in an invalid state, rolled back: {e}")
+            return None
+        except OperationalError as e:
+            self.session.rollback()
+            logger.error(f"Database operational error while getting tag: {e}")
+            return None
+        except StatementError as e:
+            self.session.rollback()
+            logger.error(f"Malformed statement while getting tag: {e}")
+            return None
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"Unexpected error while getting tag: {e}")
+            return None
 
+    def list_all(self, offset: int, limit: int) -> Sequence[Tag] | list[Any]:
+        try:
+            stmt: Select[tuple[Tag]] = select(Tag).offset(offset).limit(limit)
+            return self.session.scalars(stmt).all()
+        except OperationalError as e:
+            self.session.rollback()
+            logger.error(f"Database operational error while listing tags: {e}")
+            return []
+        except PendingRollbackError as e:
+            self.session.rollback()
+            logger.error(f"Session was left in an invalid state, rolled back: {e}")
+            return []
+        except StatementError as e:
+            self.session.rollback()
+            logger.error(f"Malformed statement while listing tags: {e}")
+            return []
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"Unexpected error while listing tags: {e}")
+            return []
+
+    def delete(self, tag_id: uuid.UUID) -> bool:
+        try:
+            tag: Tag | None = self.session.get(Tag, tag_id)
+            if tag is None:
+                return False
+
+            self.session.delete(tag)
+            self.session.commit()
             return True
-        except sqlite3.IntegrityError as e:
-            logger.error(f"Failed to update tag due to database integrity constraint: {e}")
-            return None
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database operational error while updating tag: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error while updating tag: {e}")
-            return None
-
-    def delete(self, tag_id: uuid.UUID) -> None | bool:
-        sql = """
-        DELETE FROM tags WHERE id = :tag_id
-        """
-        try:
-            with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as connection:
-                cursor: sqlite3.Cursor = connection.cursor()
-                cursor.execute(sql, {"tag_id": tag_id})
-                return cursor.rowcount > 0
-        except sqlite3.IntegrityError as e:
+        except IntegrityError as e:
+            self.session.rollback()
             logger.error(f"Failed to delete tag due to database integrity constraint: {e}")
-            return None
-        except sqlite3.OperationalError as e:
+            return False
+        except OperationalError as e:
+            self.session.rollback()
             logger.error(f"Database operational error while deleting tag: {e}")
-            return None
+            return False
+        except PendingRollbackError as e:
+            self.session.rollback()
+            logger.error(f"Session was left in an invalid state, rolled back: {e}")
+            return False
         except Exception as e:
+            self.session.rollback()
             logger.error(f"Unexpected error while deleting tag: {e}")
-            return None
+            return False
