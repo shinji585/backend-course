@@ -6,11 +6,12 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "argon2-cffi>=25.1.0",
-    "fastapi>=0.136.3",
+    "fastapi>=0.139.2",
     "fastapi-users>=15.0.5",
     "pydantic[email]>=2.13.4",
     "scalar-fastapi>=1.8.2",
-    "uvicorn[standard]>=0.48.0",
+    "sqlalchemy>=2.0.48,<2.1",
+    "uvicorn[standard]>=0.51.0",
 ]
 
 
@@ -30,5 +31,8 @@ dev = [
     "mypy>=2.1.0",
     "ruff>=0.15.16",
 ]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
 
 

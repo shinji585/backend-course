@@ -1,8 +1,18 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from scalar_fastapi import get_scalar_api_reference
 
+from app.db.database import init_db
 from app.routers import trackedProductRouter
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="TrackBuy API",
@@ -15,6 +25,7 @@ future integrations with online marketplaces (e.g., Amazon and Mercado Libre)
 to monitor product availability and pricing.
 """,
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.include_router(router=trackedProductRouter.router)

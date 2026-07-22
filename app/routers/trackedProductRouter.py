@@ -4,7 +4,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.deps import get_tracked_product_services
-from app.schemas.tracked import TrackedProductCreate, TrackedProductPublic, TrackedProductUpdate
+from app.schemas.tracked import (
+    TrackedProductCreate,
+    TrackedProductPublic,
+    TrackedProductUpdate,
+)
 from app.services.trackedProduct import TrackedProductServices
 
 router = APIRouter(prefix="/trackedProducts", tags=["trackedProducts"])
@@ -25,13 +29,17 @@ router = APIRouter(prefix="/trackedProducts", tags=["trackedProducts"])
         "- 500 if an unexpected server error occurs."
     ),
 )
-def create(
-    payload: TrackedProductCreate, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
+async def create(
+    payload: TrackedProductCreate,
+    service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> TrackedProductPublic:
     result: TrackedProductPublic | None = service.create(tracked_product=payload)
 
     if result is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create tracked product")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not create tracked product",
+        )
 
     return result
 
@@ -50,13 +58,18 @@ def create(
         "- 404 if no tracked product with the specified ID is found."
     ),
 )
-def get(
-    tracked_product_id: uuid.UUID, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
+async def get(
+    tracked_product_id: uuid.UUID,
+    service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> TrackedProductPublic:
-    result: TrackedProductPublic | None = service.get(tracked_product_id=tracked_product_id)
+    result: TrackedProductPublic | None = service.get(
+        tracked_product_id=tracked_product_id
+    )
 
     if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found"
+        )
     return result
 
 
@@ -74,7 +87,7 @@ def get(
         "- offset: Number of products to skip before returning results."
     ),
 )
-def get_all(
+async def get_all(
     services: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
     limit: int = Query(default=20, le=100, description="Max results to return"),
     offset: int = Query(default=0, ge=0, description="Number of results to skip"),
@@ -96,15 +109,20 @@ def get_all(
         "- 404 if the tracked product does not exist."
     ),
 )
-def update(
+async def update(
     tracked_product_id: uuid.UUID,
     payload: TrackedProductUpdate,
     service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> dict[str, Any]:
-    result: bool = service.update(tracked_product_id=tracked_product_id, data=payload.model_dump(exclude_unset=True))
+    result: bool = service.update(
+        tracked_product_id=tracked_product_id,
+        data=payload.model_dump(exclude_unset=True),
+    )
 
     if not result:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found"
+        )
 
     return {"message": "Tracked product updated successfully", "updated": result}
 
@@ -121,12 +139,15 @@ def update(
         "- 404 if the tracked product does not exist."
     ),
 )
-def delete(
-    tracked_product_id: uuid.UUID, service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)]
+async def delete(
+    tracked_product_id: uuid.UUID,
+    service: Annotated[TrackedProductServices, Depends(get_tracked_product_services)],
 ) -> dict[str, Any]:
     result: bool = service.remove(tracked_product_id=tracked_product_id)
 
     if not result:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found"
+        )
 
     return {"message": "Tracked product removed successfully", "removed": result}
