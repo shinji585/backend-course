@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -28,7 +28,7 @@ class Tag(Base):
         unique=True,
         index=True,
     )
-    owner_id: Mapped[uuid.UUID] = mapped_column(
+    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(  # noqa: UP045
         Uuid, ForeignKey("users.id"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -36,7 +36,7 @@ class Tag(Base):
         server_default=func.now(),
     )
 
-    owner: Mapped[User] = relationship(back_populates="tags")
+    owner: Mapped[Optional[User]] = relationship(back_populates="tags")  # noqa: UP045
 
     tracked_products: Mapped[list[TrackedProduct]] = relationship(
         secondary=tracked_product_tags,

@@ -20,7 +20,7 @@ class TagRepository:
     def save(self, tag: dict) -> bool | None:
         try:
             self.session.add(Tag(**tag))
-            self.session.commit()
+            self.session.flush()
             return True
         except IntegrityError as e:
             self.session.rollback()
@@ -38,7 +38,7 @@ class TagRepository:
     def save_many(self, tags: list[dict]) -> bool | None:
         try:
             self.session.add_all(Tag(**tag) for tag in tags)
-            self.session.commit()
+            self.session.flush()
             return True
         except IntegrityError as e:
             self.session.rollback()
@@ -121,7 +121,7 @@ class TagRepository:
                 return False
 
             self.session.delete(tag)
-            self.session.commit()
+            self.session.flush()
             return True
         except IntegrityError as e:
             self.session.rollback()

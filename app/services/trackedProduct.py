@@ -14,25 +14,19 @@ logger: Logger = get_logger(__name__)
 
 
 class TrackedProductServices:
-    def __init__(
-        self, repo: TrackedProductRepository, tag_services: TagsServices
-    ) -> None:
+    def __init__(self, repo: TrackedProductRepository, tag_services: TagsServices) -> None:
         self._repo: TrackedProductRepository = repo
         self._tag_services: TagsServices = tag_services
 
-    def create(
-        self, tracked_product: TrackedProductCreate
-    ) -> TrackedProductPublic | None:
+    def create(self, tracked_product: TrackedProductCreate) -> TrackedProductPublic | None:
         try:
             names: list[str] = (
-                [name.strip().lower() for name in tracked_product.tags_name]
-                if tracked_product.tags_name
-                else []
+                [name.strip().lower() for name in tracked_product.tags_name] if tracked_product.tags_name else []
             )
             tags: list[Tag] = self._tag_services.create_tags(names) if names else []
 
             data: dict[str, Any] = tracked_product.model_dump(exclude={"tags_name"})
-            data["tag_ids"] = [tag.id for tag in tags]
+            data["tags_id"] = [tag.id for tag in tags]
 
             product: TrackedProduct | None = self._repo.save(data)
             if product is None:
@@ -69,7 +63,5 @@ class TrackedProductServices:
         return TrackedProductPublic.model_validate(product)
 
     def get_all(self, offset: int, limit: int) -> list[TrackedProductPublic]:
-        products: Sequence[TrackedProduct] = self._repo.find_all(
-            offset=offset, limit=limit
-        )
+        products: Sequence[TrackedProduct] = self._repo.find_all(offset=offset, limit=limit)
         return [TrackedProductPublic.model_validate(p) for p in products]

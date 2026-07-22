@@ -33,14 +33,18 @@ class TrackedProductRepository:
     def save(self, data: dict) -> TrackedProduct | None:
         try:
             tag_ids = data.pop("tags_id", [])
-            product = TrackedProduct(**data)
 
+            tp = data.pop("target_price")
+            data["target_price_amount"] = tp["amount"]
+            data["target_price_currency"] = tp["currency"]
+
+            product = TrackedProduct(**data)
             if tag_ids:
                 tags: Sequence[Tag] = self.session.scalars(select(Tag).where(Tag.id.in_(tag_ids))).all()
                 product.tags = list(tags)
 
             self.session.add(product)
-            self.session.commit()
+            self.session.flush()
             return product
         except IntegrityError as e:
             self.session.rollback()
@@ -105,7 +109,7 @@ class TrackedProductRepository:
             for field, value in safe_data.items():
                 setattr(product, field, value)
 
-            self.session.commit()
+            self.session.flush()
             return True
         except IntegrityError as e:
             self.session.rollback()
@@ -127,7 +131,7 @@ class TrackedProductRepository:
                 return False
 
             self.session.delete(product)
-            self.session.commit()
+            self.session.flush()
             return True
         except IntegrityError as e:
             self.session.rollback()
