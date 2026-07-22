@@ -1,14 +1,13 @@
 import uuid
 from collections.abc import Sequence
 from logging import Logger
-from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError, OperationalError, PendingRollbackError, StatementError
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.models.tag import Tag
+from app.models import Tag
 
 logger: Logger = get_logger(__name__)
 
@@ -93,7 +92,7 @@ class TagRepository:
             logger.error(f"Unexpected error while getting tag: {e}")
             return None
 
-    def list_all(self, offset: int, limit: int) -> Sequence[Tag] | list[Any]:
+    def list_all(self, offset: int, limit: int) -> Sequence[Tag]:
         try:
             stmt: Select[tuple[Tag]] = select(Tag).offset(offset).limit(limit)
             return self.session.scalars(stmt).all()
